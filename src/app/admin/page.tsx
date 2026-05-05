@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Users, ClipboardList, ChevronRight, ShieldCheck } from "lucide-react";
+import { Users, ClipboardList, ChevronRight, ShieldCheck, Building2, Car } from "lucide-react";
 
 const MENU = [
   {
@@ -16,6 +16,18 @@ const MENU = [
     Icon: ClipboardList,
     title: "Daily Log List",
     sub: "Review logs, photos & Buildertrend status",
+  },
+  {
+    href: "/admin/subcontractors",
+    Icon: Building2,
+    title: "Subcontractors",
+    sub: "Companies & workers",
+  },
+  {
+    href: "/admin/vehicles",
+    Icon: Car,
+    title: "Vehicles",
+    sub: "Fleet — license plates & descriptions",
   },
 ];
 
