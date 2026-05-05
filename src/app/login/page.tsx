@@ -62,7 +62,7 @@ export default function LoginPage() {
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
           className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         >
-          {resolvedTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          {mounted && (resolvedTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />)}
         </button>
       </div>
 
