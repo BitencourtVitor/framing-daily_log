@@ -69,13 +69,13 @@ export default function LoginPage() {
     // don't clear localStorage — keeps memory for next visit
   }
 
-  function handleChange(index: number, value: string) {
-    if (!/^\d?$/.test(value)) return;
+  function handleChange(index: number, raw: string) {
+    const digit = raw.replace(/\D/g, "").slice(-1); // extract last real digit typed
     const next = [...pin];
-    next[index] = value;
+    next[index] = digit;
     setPin(next);
     setError("");
-    if (value && index < 5) inputs.current[index + 1]?.focus();
+    if (digit && index < 5) inputs.current[index + 1]?.focus();
     if (next.every((d) => d !== "") && index === 5) submit(next.join(""));
   }
 
@@ -223,7 +223,7 @@ export default function LoginPage() {
               <div className="flex gap-2 w-full">
                 {pin.map((digit, i) => (
                   <input key={i} ref={(el) => { inputs.current[i] = el; }}
-                    type="password" inputMode="numeric" maxLength={1} value={digit}
+                    type="text" inputMode="numeric" maxLength={2} value={digit ? "•" : ""}
                     onChange={(e) => handleChange(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
                     disabled={loading}

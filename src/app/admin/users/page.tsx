@@ -51,10 +51,10 @@ function PinInput({ label, pin, onChange, disabled }: {
   label: string; pin: string[]; onChange: (p: string[]) => void; disabled?: boolean;
 }) {
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
-  function handleChange(i: number, value: string) {
-    if (!/^\d?$/.test(value)) return;
-    const next = [...pin]; next[i] = value; onChange(next);
-    if (value && i < 5) inputs.current[i + 1]?.focus();
+  function handleChange(i: number, raw: string) {
+    const digit = raw.replace(/\D/g, "").slice(-1);
+    const next = [...pin]; next[i] = digit; onChange(next);
+    if (digit && i < 5) inputs.current[i + 1]?.focus();
   }
   function handleKeyDown(i: number, e: React.KeyboardEvent) {
     if (e.key === "Backspace" && !pin[i] && i > 0) inputs.current[i - 1]?.focus();
@@ -67,7 +67,7 @@ function PinInput({ label, pin, onChange, disabled }: {
       <div className="flex gap-2">
         {pin.map((digit, i) => (
           <input key={i} ref={(el) => { inputs.current[i] = el; }}
-            type="password" inputMode="numeric" maxLength={1} value={digit}
+            type="text" inputMode="numeric" maxLength={2} value={digit ? "•" : ""}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             disabled={disabled}
