@@ -38,10 +38,10 @@ export async function uploadAttachment(
   logId: string,
   filename: string,
   mimetype: string,
-  data: Buffer
+  data: Uint8Array
 ): Promise<string> {
   const form = new FormData();
-  const blob = new Blob([data], { type: mimetype });
+  const blob = new Blob([data as unknown as ArrayBuffer], { type: mimetype });
   form.append("file", blob, filename);
   form.append("dailyLogId", logId);
 
