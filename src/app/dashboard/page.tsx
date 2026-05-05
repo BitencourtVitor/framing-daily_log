@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   LogOut, Sun, Moon, ClipboardList, CheckCircle2, Clock,
-  CalendarDays, Users, Layers, AlertCircle, RefreshCw, History,
+  CalendarDays, Users, Layers, AlertCircle, RefreshCw, History, ShieldCheck,
 } from "lucide-react";
 
 interface LogSummary {
@@ -45,12 +45,13 @@ export default function DashboardPage() {
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const [name, setName] = useState("");
+  const [role, setRole] = useState("");
   const [logs, setLogs] = useState<LogSummary[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const today = localToday();
 
   useEffect(() => {
-    fetch("/api/me").then((r) => r.json()).then((d) => setName(d.name ?? ""));
+    fetch("/api/me").then((r) => r.json()).then((d) => { setName(d.name ?? ""); setRole(d.role ?? ""); });
     fetch("/api/daily-log").then((r) => r.json()).then(setLogs);
   }, []);
 
@@ -187,6 +188,16 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+        {/* Admin View */}
+        {(role === "admin" || role === "dev") && (
+          <button
+            onClick={() => router.push("/admin")}
+            className="w-full flex items-center justify-center gap-2 border border-border/40 rounded-xl py-3 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+          >
+            <ShieldCheck size={14} />
+            Admin View
+          </button>
+        )}
       </main>
     </div>
   );
