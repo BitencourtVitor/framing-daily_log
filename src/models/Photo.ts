@@ -4,9 +4,7 @@ export interface IPhoto extends Document {
   logId: mongoose.Types.ObjectId;
   filename: string;
   mimetype: string;
-  storageKey: string;      // key no Railway Object Storage
-  btAttachmentId: string | null;
-  uploadedToBT: boolean;
+  storageKey: string; // key in Railway Object Storage
   createdAt: Date;
 }
 
@@ -16,8 +14,6 @@ const PhotoSchema = new Schema<IPhoto>(
     filename: { type: String, required: true },
     mimetype: { type: String, required: true },
     storageKey: { type: String, required: true },
-    btAttachmentId: { type: String, default: null },
-    uploadedToBT: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

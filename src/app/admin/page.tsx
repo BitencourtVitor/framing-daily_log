@@ -15,7 +15,7 @@ const MENU = [
     href: "/admin/logs",
     Icon: ClipboardList,
     title: "Daily Log List",
-    sub: "Review logs, photos & Buildertrend status",
+    sub: "Review submitted logs and photos",
   },
   {
     href: "/admin/subcontractors",

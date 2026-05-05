@@ -20,18 +20,18 @@ export async function GET() {
   const logs = await DailyLog.find()
     .sort({ date: -1 })
     .limit(100)
-    .select("supervisorId supervisorName date status btLogId activities workers createdAt")
+    .select("supervisorId supervisorName date status activities workers createdAt")
     .lean();
 
   const logIds = logs.map((l) => l._id as mongoose.Types.ObjectId);
 
   const photoCounts = await Photo.aggregate([
     { $match: { logId: { $in: logIds } } },
-    { $group: { _id: "$logId", count: { $sum: 1 }, sentToBT: { $sum: { $cond: ["$uploadedToBT", 1, 0] } } } },
+    { $group: { _id: "$logId", count: { $sum: 1 } } },
   ]);
 
   const photoMap = Object.fromEntries(
-    photoCounts.map((p) => [p._id.toString(), { count: p.count, sentToBT: p.sentToBT }])
+    photoCounts.map((p) => [p._id.toString(), p.count as number])
   );
 
   const result = logs.map((l) => ({
@@ -40,10 +40,9 @@ export async function GET() {
     supervisorId: l.supervisorId,
     supervisorName: l.supervisorName,
     status: l.status,
-    btLogId: l.btLogId ?? null,
     activityCount: l.activities.length,
     workerCount: l.workers.length,
-    photos: photoMap[(l._id as mongoose.Types.ObjectId).toString()] ?? { count: 0, sentToBT: 0 },
+    photoCount: photoMap[(l._id as mongoose.Types.ObjectId).toString()] ?? 0,
     createdAt: l.createdAt,
   }));
 

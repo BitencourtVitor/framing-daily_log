@@ -1,10 +1,10 @@
 import mongoose, { Schema } from "mongoose";
 
-export type HVACLogStatus = "draft" | "syncing" | "synced" | "failed";
+export type HVACLogStatus = "draft" | "submitted";
 
 export interface IHVACLog {
   _id: mongoose.Types.ObjectId;
-  supervisorId: number;
+  supervisorId: string; // User ObjectId
   supervisorName: string;
   date: string;
   places: number;
@@ -19,15 +19,13 @@ export interface IHVACLog {
   driver: string;
   warrantyService: boolean;
   status: HVACLogStatus;
-  btLogId: string | null;
-  errorMessage: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const HVACLogSchema = new Schema<IHVACLog>(
   {
-    supervisorId: { type: Number, ref: "User", required: true },
+    supervisorId: { type: String, ref: "User", required: true },
     supervisorName: { type: String, required: true },
     date: { type: String, required: true },
     places: { type: Number, default: 1 },
@@ -41,9 +39,7 @@ const HVACLogSchema = new Schema<IHVACLog>(
     licensePlates: [{ type: String }],
     driver: { type: String, default: "" },
     warrantyService: { type: Boolean, default: false },
-    status: { type: String, enum: ["draft", "syncing", "synced", "failed"], default: "draft" },
-    btLogId: { type: String, default: null },
-    errorMessage: { type: String, default: null },
+    status: { type: String, enum: ["draft", "submitted"], default: "draft" },
   },
   { timestamps: true }
 );

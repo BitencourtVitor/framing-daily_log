@@ -4,27 +4,24 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight, ShieldCheck, CalendarDays, User,
-  Camera, CheckCircle2, Clock, AlertCircle, RefreshCw, Layers, Building2, Loader2,
+  Camera, CheckCircle2, Clock, Layers, Loader2,
 } from "lucide-react";
 
 interface LogEntry {
   _id: string;
   date: string;
-  supervisorId: number;
+  supervisorId: string;
   supervisorName: string;
-  status: "draft" | "syncing" | "synced" | "failed";
-  btLogId: string | null;
+  status: "draft" | "submitted";
   activityCount: number;
   workerCount: number;
-  photos: { count: number; sentToBT: number };
+  photoCount: number;
   createdAt: string;
 }
 
 const STATUS_META = {
-  draft:   { label: "Pending",     Icon: Clock,        cls: "text-muted-foreground" },
-  syncing: { label: "Syncing",     Icon: RefreshCw,    cls: "text-amber-500" },
-  synced:  { label: "Synced",      Icon: CheckCircle2, cls: "text-emerald-500" },
-  failed:  { label: "Failed",      Icon: AlertCircle,  cls: "text-red-500" },
+  draft:     { label: "Draft",     Icon: Clock,        cls: "text-muted-foreground" },
+  submitted: { label: "Submitted", Icon: CheckCircle2, cls: "text-emerald-500" },
 };
 
 function fmtDate(iso: string) {
@@ -75,8 +72,7 @@ export default function AdminLogsPage() {
           <p className="text-sm text-muted-foreground">No logs yet.</p>
         ) : (
           logs.map((log) => {
-            const meta = STATUS_META[log.status];
-            const sentToBT = !!log.btLogId;
+            const meta = STATUS_META[log.status] ?? STATUS_META.draft;
             return (
               <div key={log._id} className="bg-card border border-border/40 rounded-xl px-4 py-3 space-y-2">
                 {/* Row 1: date + status */}
@@ -86,7 +82,7 @@ export default function AdminLogsPage() {
                     <p className="text-sm font-semibold text-foreground truncate">{fmtDate(log.date)}</p>
                   </div>
                   <div className={`flex items-center gap-1 text-xs font-medium ${meta.cls}`}>
-                    <meta.Icon size={12} className={log.status === "syncing" ? "animate-spin" : ""} />
+                    <meta.Icon size={12} />
                     {meta.label}
                   </div>
                 </div>
@@ -102,14 +98,9 @@ export default function AdminLogsPage() {
                   {log.activityCount > 0 && (
                     <span className="flex items-center gap-1"><Layers size={11} /> {log.activityCount} {log.activityCount === 1 ? "activity" : "activities"}</span>
                   )}
-                  {log.photos.count > 0 && (
-                    <span className="flex items-center gap-1"><Camera size={11} /> {log.photos.count} photo{log.photos.count !== 1 ? "s" : ""}</span>
+                  {log.photoCount > 0 && (
+                    <span className="flex items-center gap-1"><Camera size={11} /> {log.photoCount} photo{log.photoCount !== 1 ? "s" : ""}</span>
                   )}
-                  {/* BT status — only framing sends to BT */}
-                  <span className={`flex items-center gap-1 ${sentToBT ? "text-emerald-500" : ""}`}>
-                    <Building2 size={11} />
-                    {sentToBT ? `BT #${log.btLogId}` : "Not sent to BT"}
-                  </span>
                 </div>
               </div>
             );

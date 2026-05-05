@@ -35,7 +35,6 @@ export async function POST(
     filename: file.name,
     mimetype: file.type,
     storageKey: key,
-    uploadedToBT: false,
   });
 
   return NextResponse.json({ key }, { status: 201 });

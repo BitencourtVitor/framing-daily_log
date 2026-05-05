@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-export type LogStatus = "draft" | "syncing" | "synced" | "failed";
+export type LogStatus = "draft" | "submitted";
 export type WorkType = "normal" | "back-charge" | "extra" | "warranty";
 
 export interface IWorker {
@@ -39,8 +39,6 @@ export interface IDailyLog extends Document {
   subcontractors: ISubcontractorEntry[];
   notes: INotes;
   status: LogStatus;
-  btLogId: string | null;
-  errorMessage: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -88,11 +86,9 @@ const DailyLogSchema = new Schema<IDailyLog>(
     },
     status: {
       type: String,
-      enum: ["draft", "syncing", "synced", "failed"],
+      enum: ["draft", "submitted"],
       default: "draft",
     },
-    btLogId: { type: String, default: null },
-    errorMessage: { type: String, default: null },
   },
   { timestamps: true }
 );
