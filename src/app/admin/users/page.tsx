@@ -92,6 +92,7 @@ export default function ManageUsersPage() {
   const [loadingWorkers, setLoadingWorkers] = useState(false);
   const [workerSearch, setWorkerSearch] = useState("");
   const [selectedWorker, setSelectedWorker] = useState<QBTWorker | null>(null);
+  const [emailInput, setEmailInput] = useState("");
   const [role, setRole] = useState<UserRole>("supervisor");
   const [companies, setCompanies] = useState<CompanyId[]>([]);
   const [pin, setPin] = useState<string[]>(EMPTY_PIN);
@@ -133,7 +134,7 @@ export default function ManageUsersPage() {
 
   function openModal() {
     setShowModal(true); setModalCompany(null); setQbtWorkers([]); setTotalQbtWorkers(0); setWorkersError(""); setSelectedWorker(null);
-    setWorkerSearch(""); setRole("supervisor"); setCompanies([]); setPin(EMPTY_PIN); setPinConfirm(EMPTY_PIN); setError("");
+    setWorkerSearch(""); setEmailInput(""); setRole("supervisor"); setCompanies([]); setPin(EMPTY_PIN); setPinConfirm(EMPTY_PIN); setError("");
   }
 
   function closeModal() { setShowModal(false); }
@@ -149,13 +150,14 @@ export default function ManageUsersPage() {
 
   async function createUser() {
     const pinStr = pin.join(""); const confirmStr = pinConfirm.join("");
+    if (!selectedWorker) { setError("Select a worker."); return; }
+    if (!emailInput.trim()) { setError("Email is required."); return; }
     if (pinStr.length !== 6) { setError("Enter a 6-digit PIN."); return; }
     if (pinStr !== confirmStr) { setError("PINs don't match."); return; }
-    if (!selectedWorker) { setError("Select a worker."); return; }
     setError(""); setSaving(true);
     const res = await fetch("/api/admin/users", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qbtId: selectedWorker.id, name: selectedWorker.name, email: selectedWorker.email, role, companies, pin: pinStr }),
+      body: JSON.stringify({ qbtId: selectedWorker.id, name: selectedWorker.name, email: emailInput.trim(), role, companies, pin: pinStr }),
     });
     setSaving(false);
     if (!res.ok) { setError((await res.json()).error); return; }
@@ -256,7 +258,7 @@ export default function ManageUsersPage() {
                           );
                         }
                         return (
-                          <button key={w.id} onClick={() => setSelectedWorker(sel ? null : w)}
+                          <button key={w.id} onClick={() => { const next = sel ? null : w; setSelectedWorker(next); setEmailInput(next?.email ?? ""); }}
                             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors ${sel ? "bg-primary/5 border-primary/30 text-primary" : "bg-background border-border/40 text-foreground hover:border-border"}`}>
                             <div className="min-w-0 text-left">
                               <p className="truncate">{w.name}</p>
@@ -272,9 +274,28 @@ export default function ManageUsersPage() {
               </div>
             )}
 
-            {/* Role + Companies + PIN */}
+            {/* Email + Role + Companies + PIN */}
             {selectedWorker && (
               <>
+                {/* Email — disabled if from QBT, editable if missing */}
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full border border-current" />
+                    Email
+                    {selectedWorker.email
+                      ? <span className="ml-auto text-[10px] text-muted-foreground/60">from QuickBooks Time</span>
+                      : <span className="ml-auto text-[10px] text-amber-500">required — not in QBT</span>}
+                  </label>
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    disabled={!!selectedWorker.email}
+                    placeholder="worker@email.com"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs text-muted-foreground font-medium flex items-center gap-1"><UserCog size={11} /> Role</label>
                   <div className="flex gap-2">
@@ -312,7 +333,7 @@ export default function ManageUsersPage() {
 
             {error && <p className="text-xs text-red-500">{error}</p>}
 
-            {selectedWorker && pinFull && (
+            {selectedWorker && emailInput.trim() && pinFull && (
               <button onClick={createUser} disabled={saving}
                 className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 disabled:opacity-50">
                 {saving ? "Creating…" : "Create User"}
