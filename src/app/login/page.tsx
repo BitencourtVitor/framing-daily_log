@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Sun, Moon, ChevronLeft, Loader2, Crown, Terminal, HardHat } from "lucide-react";
+import { Sun, Moon, ChevronLeft, Loader2, Crown, Terminal, HardHat, Search, X } from "lucide-react";
 
 type UserRole = "admin" | "dev" | "supervisor";
 interface LoginUser { id: string; name: string; email: string; role: UserRole; }
@@ -26,6 +26,7 @@ const LS_KEY = "loginUser";
 export default function LoginPage() {
   const [users, setUsers]       = useState<LoginUser[]>([]);
   const [selected, setSelected] = useState<LoginUser | null>(null);
+  const [search, setSearch]     = useState("");
   const [pin, setPin]           = useState(["", "", "", "", "", ""]);
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
@@ -137,18 +138,47 @@ export default function LoginPage() {
                 <p className="text-base font-semibold text-foreground">Who are you?</p>
                 <p className="text-xs text-muted-foreground mt-1">Select your name to continue</p>
               </div>
-              <div className="w-full flex flex-col gap-2 max-h-72 overflow-y-auto pr-0.5">
+              {users.length > 0 && (
+                <div className="relative w-full">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search…"
+                    className="w-full bg-background border border-border rounded-lg pl-8 pr-8 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="w-full flex flex-col gap-2 max-h-60 overflow-y-auto pr-0.5">
                 {users.length === 0 && (
                   <div className="flex justify-center py-4">
                     <Loader2 size={20} className="animate-spin text-muted-foreground" />
                   </div>
                 )}
-                {[...users]
-                  .sort((a, b) => {
-                    const rd = ROLE_ORDER[a.role] - ROLE_ORDER[b.role];
-                    return rd !== 0 ? rd : a.name.localeCompare(b.name);
-                  })
-                  .map((u) => {
+                {(() => {
+                  const filtered = [...users]
+                    .sort((a, b) => {
+                      const rd = ROLE_ORDER[a.role] - ROLE_ORDER[b.role];
+                      return rd !== 0 ? rd : a.name.localeCompare(b.name);
+                    })
+                    .filter((u) => !search.trim() || u.name.toLowerCase().includes(search.toLowerCase()));
+
+                  if (users.length > 0 && filtered.length === 0) {
+                    return (
+                      <p className="text-sm text-muted-foreground text-center py-4">No match for "{search}"</p>
+                    );
+                  }
+
+                  return filtered.map((u) => {
                     const Icon = ROLE_ICONS[u.role];
                     return (
                       <button key={u.id} onClick={() => selectUser(u)}
@@ -162,7 +192,8 @@ export default function LoginPage() {
                         </div>
                       </button>
                     );
-                  })}
+                  });
+                })()}
               </div>
 
             </>
