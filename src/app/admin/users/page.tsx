@@ -20,7 +20,7 @@ interface AppUser {
   active: boolean;
 }
 
-interface QBTWorker { id: number; name: string; email: string; }
+interface QBTWorker { id: number; name: string; email: string; registered?: boolean; }
 
 const COMPANIES: { id: CompanyId; label: string; logo: string }[] = [
   { id: "framing", label: "Framing", logo: "/images/sublogo_framing.png" },
@@ -126,8 +126,8 @@ export default function ManageUsersPage() {
     if (!res.ok) { setWorkersError(data.error ?? "Failed to load workers."); setLoadingWorkers(false); return; }
     const raw: QBTWorker[] = Array.isArray(data) ? data : [];
     const existingEmails = new Set(existingUsers.map((u) => u._id).filter(Boolean));
-    const filtered = raw.filter((w) => !existingEmails.has(w.email));
-    setTotalQbtWorkers(raw.length); setQbtWorkers(filtered); setLoadingWorkers(false);
+    const marked = raw.map((w) => ({ ...w, registered: !!w.email && existingEmails.has(w.email) }));
+    setTotalQbtWorkers(raw.length); setQbtWorkers(marked); setLoadingWorkers(false);
   }, []);
 
   function openModal() {
@@ -181,7 +181,10 @@ export default function ManageUsersPage() {
   }
 
   const filteredWorkers = workerSearch.trim()
-    ? qbtWorkers.filter((w) => w.name.toLowerCase().includes(workerSearch.toLowerCase()))
+    ? qbtWorkers.filter((w) => {
+        const q = workerSearch.toLowerCase();
+        return w.name.toLowerCase().includes(q) || w.email.toLowerCase().includes(q);
+      })
     : qbtWorkers;
 
   const pinFull = pin.every((d) => d !== "");
@@ -231,22 +234,34 @@ export default function ManageUsersPage() {
                 ) : workersError ? (
                   <p className="text-xs text-red-500">{workersError}</p>
                 ) : qbtWorkers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    {totalQbtWorkers === 0 ? "No workers found for this company." : "All workers already registered."}
-                  </p>
+                  <p className="text-xs text-muted-foreground">No workers found for this company.</p>
                 ) : (
                   <>
                     <input value={workerSearch} onChange={(e) => setWorkerSearch(e.target.value)}
                       className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
-                      placeholder="Search…" />
-                    <div className="overflow-y-auto max-h-40 space-y-1 pr-0.5">
+                      placeholder="Search name or email…" />
+                    <div className="overflow-y-auto max-h-48 space-y-1 pr-0.5">
                       {filteredWorkers.map((w) => {
                         const sel = selectedWorker?.id === w.id;
+                        if (w.registered) {
+                          return (
+                            <div key={w.id} className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border/20 bg-background/40 opacity-50 cursor-default">
+                              <div className="min-w-0">
+                                <p className="text-sm text-foreground truncate">{w.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{w.email || "—"}</p>
+                              </div>
+                              <span className="text-[10px] font-semibold text-muted-foreground shrink-0 ml-2">Registered</span>
+                            </div>
+                          );
+                        }
                         return (
                           <button key={w.id} onClick={() => setSelectedWorker(sel ? null : w)}
                             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors ${sel ? "bg-primary/5 border-primary/30 text-primary" : "bg-background border-border/40 text-foreground hover:border-border"}`}>
-                            <span>{w.name}</span>
-                            {w.email && <span className="text-xs text-muted-foreground truncate max-w-36">{w.email}</span>}
+                            <div className="min-w-0 text-left">
+                              <p className="truncate">{w.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{w.email || "—"}</p>
+                            </div>
+                            {sel && <Check size={14} className="shrink-0 ml-2" />}
                           </button>
                         );
                       })}
