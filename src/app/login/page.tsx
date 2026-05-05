@@ -3,38 +3,68 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Sun, Moon, ChevronLeft, Loader2 } from "lucide-react";
+import { Sun, Moon, ChevronLeft, Loader2, Crown, Terminal, HardHat } from "lucide-react";
 
-interface LoginUser { id: string; name: string; }
+type UserRole = "admin" | "dev" | "supervisor";
+interface LoginUser { id: string; name: string; email: string; role: UserRole; }
 
-function initials(name: string) {
-  return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-}
+const ROLE_ICONS: Record<UserRole, React.ElementType> = {
+  admin:      Crown,
+  dev:        Terminal,
+  supervisor: HardHat,
+};
+const ROLE_COLORS: Record<UserRole, string> = {
+  admin:      "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  dev:        "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  supervisor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+};
+
+const LS_KEY = "loginUser";
 
 export default function LoginPage() {
-  const [users, setUsers]           = useState<LoginUser[]>([]);
-  const [selected, setSelected]     = useState<LoginUser | null>(null);
-  const [pin, setPin]               = useState(["", "", "", "", "", ""]);
-  const [error, setError]           = useState("");
-  const [loading, setLoading]       = useState(false);
-  const [mounted, setMounted]       = useState(false);
+  const [users, setUsers]       = useState<LoginUser[]>([]);
+  const [selected, setSelected] = useState<LoginUser | null>(null);
+  const [pin, setPin]           = useState(["", "", "", "", "", ""]);
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [mounted, setMounted]   = useState(false);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
   const router  = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
 
   useEffect(() => {
     setMounted(true);
-    fetch("/api/auth/users").then((r) => r.json()).then(setUsers);
+    fetch("/api/auth/users")
+      .then((r) => r.json())
+      .then((data: LoginUser[]) => {
+        setUsers(data);
+        // Restore saved user and skip to step 2
+        try {
+          const saved = localStorage.getItem(LS_KEY);
+          if (saved) {
+            const parsed: LoginUser = JSON.parse(saved);
+            // Verify still in list (active)
+            const match = data.find((u) => u.id === parsed.id);
+            if (match) { setSelected(match); setTimeout(() => inputs.current[0]?.focus(), 80); }
+          }
+        } catch { /* ignore */ }
+      });
   }, []);
 
   function selectUser(u: LoginUser) {
     setSelected(u);
     setPin(["", "", "", "", "", ""]);
     setError("");
+    localStorage.setItem(LS_KEY, JSON.stringify(u));
     setTimeout(() => inputs.current[0]?.focus(), 80);
   }
 
-  function back() { setSelected(null); setPin(["", "", "", "", "", ""]); setError(""); }
+  function back() {
+    setSelected(null);
+    setPin(["", "", "", "", "", ""]);
+    setError("");
+    // don't clear localStorage — keeps memory for next visit
+  }
 
   function handleChange(index: number, value: string) {
     if (!/^\d?$/.test(value)) return;
@@ -105,21 +135,27 @@ export default function LoginPage() {
                 <p className="text-base font-semibold text-foreground">Who are you?</p>
                 <p className="text-xs text-muted-foreground mt-1">Select your name to continue</p>
               </div>
-              <div className="w-full flex flex-col gap-2">
+              <div className="w-full flex flex-col gap-2 max-h-72 overflow-y-auto pr-0.5">
                 {users.length === 0 && (
                   <div className="flex justify-center py-4">
                     <Loader2 size={20} className="animate-spin text-muted-foreground" />
                   </div>
                 )}
-                {users.map((u) => (
-                  <button key={u.id} onClick={() => selectUser(u)}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border/40 bg-background hover:border-primary hover:bg-primary/5 transition-colors text-left">
-                    <span className="w-8 h-8 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">
-                      {initials(u.name)}
-                    </span>
-                    <span className="text-sm font-medium text-foreground">{u.name}</span>
-                  </button>
-                ))}
+                {users.map((u) => {
+                  const Icon = ROLE_ICONS[u.role];
+                  return (
+                    <button key={u.id} onClick={() => selectUser(u)}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border/40 bg-background hover:border-primary hover:bg-primary/5 transition-colors text-left">
+                      <span className={`w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${ROLE_COLORS[u.role]}`}>
+                        <Icon size={14} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
+                        {u.email && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </>
           ) : (
@@ -129,10 +165,15 @@ export default function LoginPage() {
                 <button onClick={back} className="p-1 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
                   <ChevronLeft size={16} />
                 </button>
-                <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
-                  {initials(selected.name)}
-                </span>
-                <span className="text-sm font-semibold text-foreground">{selected.name}</span>
+                {(() => { const Icon = ROLE_ICONS[selected.role]; return (
+                  <span className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${ROLE_COLORS[selected.role]}`}>
+                    <Icon size={12} />
+                  </span>
+                ); })()}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{selected.name}</p>
+                  {selected.email && <p className="text-xs text-muted-foreground truncate">{selected.email}</p>}
+                </div>
               </div>
 
               <div className="text-center">
