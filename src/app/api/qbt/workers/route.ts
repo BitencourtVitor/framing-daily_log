@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
         // auto-link registered user by email → update qbtIds + companies
         if (email) {
           await User.findOneAndUpdate(
-            { _id: email },
+            { email },
             {
               $set: { [`qbtIds.${company}`]: u.id },
               $addToSet: { companies: company },

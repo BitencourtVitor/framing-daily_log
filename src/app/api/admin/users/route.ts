@@ -33,18 +33,17 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
-  const existing = await User.findById(email);
+  const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) return NextResponse.json({ error: "User already exists" }, { status: 409 });
 
-  // determine which company this worker came from (first in the companies list)
   const primaryCompany: CompanyId | undefined = (companies ?? [])[0];
   const qbtIds: Partial<Record<CompanyId, number>> = {};
   if (primaryCompany && qbtId) qbtIds[primaryCompany] = Number(qbtId);
 
   const hashed = await bcrypt.hash(pin, 12);
   const user = await User.create({
-    _id: email,
     name,
+    email,
     pin: hashed,
     role: role as UserRole,
     companies: (companies ?? []) as CompanyId[],

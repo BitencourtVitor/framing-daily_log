@@ -12,8 +12,9 @@ type CompanyId = "framing" | "hvac" | "pcg";
 type UserRole = "admin" | "dev" | "supervisor";
 
 interface AppUser {
-  _id: string; // email
+  _id: string;   // ObjectId string — stable system key
   name: string;
+  email: string; // unique, cross-company identifier
   role: UserRole;
   companies: CompanyId[];
   qbtIds: Partial<Record<CompanyId, number>>;
@@ -125,7 +126,7 @@ export default function ManageUsersPage() {
     const data = await res.json();
     if (!res.ok) { setWorkersError(data.error ?? "Failed to load workers."); setLoadingWorkers(false); return; }
     const raw: QBTWorker[] = Array.isArray(data) ? data : [];
-    const existingEmails = new Set(existingUsers.map((u) => u._id).filter(Boolean));
+    const existingEmails = new Set(existingUsers.map((u) => u.email).filter(Boolean));
     const marked = raw.map((w) => ({ ...w, registered: !!w.email && existingEmails.has(w.email) }));
     setTotalQbtWorkers(raw.length); setQbtWorkers(marked); setLoadingWorkers(false);
   }, []);
@@ -364,7 +365,7 @@ export default function ManageUsersPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
-                      <p className="text-xs text-muted-foreground">{u._id}</p>
+                      <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {(() => { const Icon = ROLE_ICONS[u.role]; return (
