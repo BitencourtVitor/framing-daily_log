@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronRight, ShieldCheck, Plus, X, Check,
   Building2, UserCog, KeyRound, Pencil, Search,
-  Crown, Terminal, HardHat,
+  Crown, Terminal, HardHat, Mail,
 } from "lucide-react";
 
 type CompanyId = "framing" | "hvac" | "pcg";
@@ -280,8 +280,7 @@ export default function ManageUsersPage() {
                 {/* Email — disabled if from QBT, editable if missing */}
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                    <span className="inline-block w-2.5 h-2.5 rounded-full border border-current" />
-                    Email
+                    <Mail size={11} /> Email
                     {selectedWorker.email
                       ? <span className="ml-auto text-[10px] text-muted-foreground/60">from QuickBooks Time</span>
                       : <span className="ml-auto text-[10px] text-amber-500">required — not in QBT</span>}
