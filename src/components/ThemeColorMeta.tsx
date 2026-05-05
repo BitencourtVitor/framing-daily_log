@@ -14,12 +14,16 @@ export function ThemeColorMeta() {
   useEffect(() => {
     if (!resolvedTheme) return;
     const color = COLORS[resolvedTheme] ?? COLORS.light;
-    // Remove all existing theme-color metas (incl. media-specific ones from Next.js viewport)
-    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.remove());
-    const meta = document.createElement("meta");
-    meta.name = "theme-color";
-    meta.content = color;
-    document.head.appendChild(meta);
+    // Remove media-specific metas (Next.js viewport generates these), keep or create one clean meta
+    document.querySelectorAll('meta[name="theme-color"][media]').forEach((m) => m.remove());
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute("name", "theme-color");
+      document.head.appendChild(meta);
+    }
+    // setAttribute triggers MutationObserver — iOS Safari picks up the change
+    meta.setAttribute("content", color);
   }, [resolvedTheme]);
 
   return null;
