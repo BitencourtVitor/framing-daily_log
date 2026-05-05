@@ -6,7 +6,7 @@ import "./globals.css";
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Premium Framing — Daily Log",
+  title: "Daily Log",
   description: "Daily log submission for Premium Framing supervisors",
   manifest: "/manifest.json",
   appleWebApp: {
