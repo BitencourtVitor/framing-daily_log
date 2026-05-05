@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed:supervisor": "bun --env-file=.env.local scripts/seed-supervisor.mjs",
-    "update:qbt-user": "bun --env-file=.env.local scripts/update-qbt-user.mjs"
+    "seed:user": "bun --env-file=.env.local scripts/seed-user.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.798.0",
