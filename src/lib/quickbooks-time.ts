@@ -1,14 +1,23 @@
 /**
  * QuickBooks Time (TSheets) API client
- * OAuth2 — tokens stored in env after initial authorization flow.
  * Docs: https://tsheetsteam.github.io/api_docs/
  */
 
+import type { CompanyId } from "@/models/User";
+
 const QBT_BASE_URL = "https://rest.tsheets.com/api/v1";
 
-function qbtHeaders() {
+const TOKEN_ENV: Record<CompanyId, string> = {
+  framing: "QBT_ACCESS_TOKEN_FRAMING",
+  hvac:    "QBT_ACCESS_TOKEN_HVAC",
+  pcg:     "QBT_ACCESS_TOKEN_PCG",
+};
+
+function qbtHeaders(company: CompanyId) {
+  const token = process.env[TOKEN_ENV[company]];
+  if (!token) throw new Error(`QBT token not configured for company: ${company}`);
   return {
-    Authorization: `Bearer ${process.env.QBT_ACCESS_TOKEN}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
 }
@@ -29,7 +38,7 @@ export interface QBTUser {
   email: string;
 }
 
-export async function getTimesheetsForDate(date: string): Promise<QBTTimesheet[]> {
+export async function getTimesheetsForDate(date: string, company: CompanyId): Promise<QBTTimesheet[]> {
   const params = new URLSearchParams({
     start_date: date,
     end_date: date,
@@ -38,7 +47,7 @@ export async function getTimesheetsForDate(date: string): Promise<QBTTimesheet[]
   });
 
   const res = await fetch(`${QBT_BASE_URL}/timesheets?${params}`, {
-    headers: qbtHeaders(),
+    headers: qbtHeaders(company),
   });
 
   if (!res.ok) {
@@ -51,11 +60,11 @@ export async function getTimesheetsForDate(date: string): Promise<QBTTimesheet[]
   return Object.values(items) as QBTTimesheet[];
 }
 
-export async function getUsers(userIds: number[]): Promise<QBTUser[]> {
+export async function getUsers(userIds: number[], company: CompanyId): Promise<QBTUser[]> {
   const params = new URLSearchParams({ ids: userIds.join(",") });
 
   const res = await fetch(`${QBT_BASE_URL}/users?${params}`, {
-    headers: qbtHeaders(),
+    headers: qbtHeaders(company),
   });
 
   if (!res.ok) {
@@ -68,9 +77,9 @@ export async function getUsers(userIds: number[]): Promise<QBTUser[]> {
   return Object.values(items) as QBTUser[];
 }
 
-export async function getAllUsers(): Promise<QBTUser[]> {
+export async function getAllUsers(company: CompanyId): Promise<QBTUser[]> {
   const res = await fetch(`${QBT_BASE_URL}/users`, {
-    headers: qbtHeaders(),
+    headers: qbtHeaders(company),
   });
 
   if (!res.ok) {
