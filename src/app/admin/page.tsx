@@ -55,7 +55,6 @@ export default function AdminPage() {
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-8 flex flex-col gap-3">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">Admin Tools</p>
         {MENU.map(({ href, Icon, title, sub }) => (
           <button
             key={href}
