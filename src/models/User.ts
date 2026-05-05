@@ -4,11 +4,12 @@ export type UserRole = "admin" | "dev" | "supervisor";
 export type CompanyId = "framing" | "hvac" | "pcg";
 
 export interface IUser {
-  _id: number; // QuickBooks Time user ID
+  _id: string; // email — unique across all QBT companies
   name: string;
-  pin: string; // bcrypt hash
+  pin: string;   // bcrypt hash
   role: UserRole;
   companies: CompanyId[];
+  qbtIds: Partial<Record<CompanyId, number>>; // QBT user ID per company
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -16,11 +17,16 @@ export interface IUser {
 
 const UserSchema = new Schema<IUser>(
   {
-    _id: { type: Number, required: true },
+    _id: { type: String, required: true }, // email
     name: { type: String, required: true },
     pin: { type: String, required: true },
     role: { type: String, enum: ["admin", "dev", "supervisor"], required: true },
     companies: [{ type: String, enum: ["framing", "hvac", "pcg"] }],
+    qbtIds: {
+      framing: { type: Number },
+      hvac:    { type: Number },
+      pcg:     { type: Number },
+    },
     active: { type: Boolean, default: true },
   },
   { timestamps: true }

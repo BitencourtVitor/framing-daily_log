@@ -33,7 +33,7 @@ export async function PATCH(
   }
 
   await connectDB();
-  const user = await User.findByIdAndUpdate(Number(id), { $set: update }, { new: true }).select("-pin");
+  const user = await User.findByIdAndUpdate(id, { $set: update }, { new: true }).select("-pin");
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   return NextResponse.json(user);

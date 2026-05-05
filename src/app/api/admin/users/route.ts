@@ -22,10 +22,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   if (!(await guard())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { qbtId, name, role, companies, pin, active } = await req.json();
+  const { qbtId, name, email, role, companies, pin } = await req.json();
 
-  if (!qbtId || !name || !role || !pin) {
-    return NextResponse.json({ error: "qbtId, name, role and pin are required" }, { status: 400 });
+  if (!email || !name || !role || !pin) {
+    return NextResponse.json({ error: "email, name, role and pin are required" }, { status: 400 });
   }
   if (!/^\d{6}$/.test(pin)) {
     return NextResponse.json({ error: "PIN must be 6 digits" }, { status: 400 });
@@ -33,17 +33,23 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
-  const existing = await User.findById(Number(qbtId));
-  if (existing) return NextResponse.json({ error: "User with this QBT ID already exists" }, { status: 409 });
+  const existing = await User.findById(email);
+  if (existing) return NextResponse.json({ error: "User already exists" }, { status: 409 });
+
+  // determine which company this worker came from (first in the companies list)
+  const primaryCompany: CompanyId | undefined = (companies ?? [])[0];
+  const qbtIds: Partial<Record<CompanyId, number>> = {};
+  if (primaryCompany && qbtId) qbtIds[primaryCompany] = Number(qbtId);
 
   const hashed = await bcrypt.hash(pin, 12);
   const user = await User.create({
-    _id: Number(qbtId),
+    _id: email,
     name,
     pin: hashed,
     role: role as UserRole,
     companies: (companies ?? []) as CompanyId[],
-    active: active ?? true,
+    qbtIds,
+    active: true,
   });
 
   const { pin: _, ...safe } = user.toObject();

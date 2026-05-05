@@ -6,6 +6,7 @@ export interface IQBTUserCache extends Document {
   company: CompanyId;
   firstName: string;
   lastName: string;
+  email: string;
   syncedAt: Date;
 }
 
@@ -14,6 +15,7 @@ const QBTUserCacheSchema = new Schema<IQBTUserCache>({
   company: { type: String, enum: ["framing", "hvac", "pcg"], required: true },
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
+  email: { type: String, default: "" },
   syncedAt: { type: Date, required: true },
 });
 

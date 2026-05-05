@@ -14,12 +14,15 @@ const args = Object.fromEntries(
   })
 );
 
-const { name, pin, role } = args;
-const qbtId = args["qbt-id"] ? Number(args["qbt-id"]) : null;
+const { name, email, pin, role } = args;
+const qbtFraming  = args["qbt-framing"]  ? Number(args["qbt-framing"])  : undefined;
+const qbtHvac     = args["qbt-hvac"]     ? Number(args["qbt-hvac"])     : undefined;
+const qbtPcg      = args["qbt-pcg"]      ? Number(args["qbt-pcg"])      : undefined;
 
-if (!name || !pin || !role || !qbtId) {
+if (!name || !email || !pin || !role) {
   console.error("Usage:");
-  console.error('  bun run seed:user -- --name="John Doe" --pin=123456 --role=supervisor --qbt-id=1234567');
+  console.error('  bun run seed:user -- --name="John Doe" --email=john@example.com --pin=123456 --role=supervisor');
+  console.error('  Optional: --qbt-framing=1234567 --qbt-hvac=7654321 --qbt-pcg=9999999');
   console.error("Roles: admin | dev | supervisor");
   process.exit(1);
 }
@@ -34,36 +37,44 @@ if (!["admin", "dev", "supervisor"].includes(role)) {
   process.exit(1);
 }
 
-if (isNaN(qbtId)) {
-  console.error("❌  qbt-id must be a number.");
-  process.exit(1);
-}
-
 await mongoose.connect(MONGODB_URL, { bufferCommands: false });
 
 const hashed = await bcrypt.hash(pin, 12);
 const col = mongoose.connection.collection("users");
 
-const existing = await col.findOne({ _id: qbtId });
+const existing = await col.findOne({ _id: email });
 if (existing) {
-  console.error(`❌  User with QBT ID ${qbtId} already exists: ${existing.name}`);
+  console.error(`❌  User with email ${email} already exists: ${existing.name}`);
   await mongoose.disconnect();
   process.exit(1);
 }
 
+const qbtIds = {};
+if (qbtFraming) qbtIds.framing = qbtFraming;
+if (qbtHvac)    qbtIds.hvac    = qbtHvac;
+if (qbtPcg)     qbtIds.pcg     = qbtPcg;
+
+const companies = Object.keys(qbtIds);
+
 await col.insertOne({
-  _id: qbtId,
+  _id: email,
   name,
   pin: hashed,
   role,
+  companies,
+  qbtIds,
   active: true,
   createdAt: new Date(),
   updatedAt: new Date(),
 });
 
 console.log("✅  User created:");
-console.log(`    Name   : ${name}`);
-console.log(`    QBT ID : ${qbtId}`);
-console.log(`    Role   : ${role}`);
+console.log(`    Name      : ${name}`);
+console.log(`    Email     : ${email}`);
+console.log(`    Role      : ${role}`);
+console.log(`    Companies : ${companies.join(", ") || "(none)"}`);
+if (qbtFraming) console.log(`    QBT Framing: ${qbtFraming}`);
+if (qbtHvac)    console.log(`    QBT HVAC   : ${qbtHvac}`);
+if (qbtPcg)     console.log(`    QBT PCG    : ${qbtPcg}`);
 
 await mongoose.disconnect();

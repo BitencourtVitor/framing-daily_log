@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronRight, CalendarDays, Users, Minus, Plus, MapPin,
   Layers, Wrench, MessageSquare, Package, Car, KeyRound,
-  ShieldCheck, Camera, AlertTriangle, X,
+  ShieldCheck, Camera, AlertTriangle, X, Check,
 } from "lucide-react";
 
 const STAGES = [
@@ -352,10 +352,3 @@ export default function HVACLogNewPage() {
   );
 }
 
-function Check({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
