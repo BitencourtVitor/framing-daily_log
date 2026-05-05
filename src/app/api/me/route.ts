@@ -4,5 +4,5 @@ import { getSession } from "@/lib/auth";
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return NextResponse.json({ name: session.name, supervisorId: session.supervisorId });
+  return NextResponse.json({ name: session.name, userId: session.userId, role: session.role });
 }

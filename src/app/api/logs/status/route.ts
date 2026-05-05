@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   await connectDB();
 
-  const query: Record<string, unknown> = { supervisorId: session.supervisorId };
+  const query: Record<string, unknown> = { supervisorId: session.userId };
   if (from || to) {
     const dateFilter: Record<string, string> = {};
     if (from) dateFilter.$gte = from;

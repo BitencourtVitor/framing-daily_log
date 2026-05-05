@@ -14,12 +14,12 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
-  const existing = await DailyLog.findOne({ supervisorId: session.supervisorId, date });
+  const existing = await DailyLog.findOne({ supervisorId: session.userId, date });
   if (existing)
     return NextResponse.json({ error: "Log already exists for this date" }, { status: 409 });
 
   const log = await DailyLog.create({
-    supervisorId: session.supervisorId,
+    supervisorId: session.userId,
     supervisorName: session.name,
     date,
     workers: workers ?? [],
@@ -38,7 +38,7 @@ export async function GET() {
 
   await connectDB();
 
-  const logs = await DailyLog.find({ supervisorId: session.supervisorId })
+  const logs = await DailyLog.find({ supervisorId: session.userId })
     .sort({ date: -1 })
     .limit(30)
     .select("-__v");

@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export type LogStatus = "draft" | "syncing" | "synced" | "failed";
-export type WorkType = "normal" | "back-charge" | "extra" | "garantia";
+export type WorkType = "normal" | "back-charge" | "extra" | "warranty";
 
 export interface IWorker {
   qbtUserId: number;
@@ -31,7 +31,7 @@ export interface INotes {
 }
 
 export interface IDailyLog extends Document {
-  supervisorId: mongoose.Types.ObjectId;
+  supervisorId: number;
   supervisorName: string;
   date: string;
   workers: IWorker[];
@@ -47,7 +47,7 @@ export interface IDailyLog extends Document {
 
 const DailyLogSchema = new Schema<IDailyLog>(
   {
-    supervisorId: { type: Schema.Types.ObjectId, ref: "Supervisor", required: true },
+    supervisorId: { type: Number, ref: "User", required: true },
     supervisorName: { type: String, required: true },
     date: { type: String, required: true },
     workers: [
@@ -66,7 +66,7 @@ const DailyLogSchema = new Schema<IDailyLog>(
         timeEnd: { type: String, required: true },
         workType: {
           type: String,
-          enum: ["normal", "back-charge", "extra", "garantia"],
+          enum: ["normal", "back-charge", "extra", "warranty"],
           required: true,
         },
       },

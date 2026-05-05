@@ -4,8 +4,9 @@ import { cookies } from "next/headers";
 const secret = () => new TextEncoder().encode(process.env.JWT_SECRET!);
 
 export interface SessionPayload extends JWTPayload {
-  supervisorId: string;
+  userId: number;
   name: string;
+  role: "admin" | "dev" | "supervisor";
 }
 
 export async function createSession(payload: SessionPayload) {

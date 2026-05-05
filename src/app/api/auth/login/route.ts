@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
-import { Supervisor } from "@/models/Supervisor";
+import { User } from "@/models/User";
 import { createSession } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -13,13 +13,13 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
-  const supervisors = await Supervisor.find({ active: true });
+  const users = await User.find({ active: true });
   let matched = null;
 
-  for (const s of supervisors) {
-    const ok = await bcrypt.compare(pin, s.pin);
+  for (const u of users) {
+    const ok = await bcrypt.compare(pin, u.pin);
     if (ok) {
-      matched = s;
+      matched = u;
       break;
     }
   }
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
   }
 
-  await createSession({ supervisorId: matched._id.toString(), name: matched.name });
+  await createSession({ userId: matched._id, name: matched.name, role: matched.role });
 
-  return NextResponse.json({ name: matched.name });
+  return NextResponse.json({ name: matched.name, role: matched.role });
 }

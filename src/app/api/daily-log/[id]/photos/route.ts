@@ -17,7 +17,7 @@ export async function POST(
 
   await connectDB();
 
-  const log = await DailyLog.findOne({ _id: id, supervisorId: session.supervisorId });
+  const log = await DailyLog.findOne({ _id: id, supervisorId: session.userId });
   if (!log) return NextResponse.json({ error: "Log not found" }, { status: 404 });
 
   const formData = await req.formData();
