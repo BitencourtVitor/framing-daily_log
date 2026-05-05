@@ -36,12 +36,17 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
+  try {
+    await connectDB();
 
-  const logs = await DailyLog.find({ supervisorId: session.userId })
-    .sort({ date: -1 })
-    .limit(30)
-    .select("-__v");
+    const logs = await DailyLog.find({ supervisorId: session.userId })
+      .sort({ date: -1 })
+      .limit(30)
+      .select("-__v");
 
-  return NextResponse.json(logs);
+    return NextResponse.json(logs);
+  } catch (err) {
+    console.error("[daily-log GET]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

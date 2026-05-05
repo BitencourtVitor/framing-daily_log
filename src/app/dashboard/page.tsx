@@ -52,7 +52,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => { setName(d.name ?? ""); setRole(d.role ?? ""); });
-    fetch("/api/daily-log").then((r) => r.json()).then(setLogs);
+    fetch("/api/daily-log").then((r) => r.ok ? r.json() : []).then(setLogs);
   }, []);
 
   const todayLog = logs?.find((l) => l.date === today) ?? (logs === null ? undefined : null);
@@ -81,7 +81,8 @@ export default function DashboardPage() {
           <button
             onClick={async () => {
               setRefreshing(true);
-              const data = await fetch("/api/daily-log").then((r) => r.json());
+              const res = await fetch("/api/daily-log");
+              const data = res.ok ? await res.json() : [];
               setLogs(data);
               setRefreshing(false);
             }}
