@@ -31,7 +31,7 @@ export interface INotes {
 }
 
 export interface IDailyLog extends Document {
-  supervisorId: number;
+  supervisorId: string; // User ObjectId
   supervisorName: string;
   date: string;
   workers: IWorker[];
@@ -47,7 +47,7 @@ export interface IDailyLog extends Document {
 
 const DailyLogSchema = new Schema<IDailyLog>(
   {
-    supervisorId: { type: Number, ref: "User", required: true },
+    supervisorId: { type: String, ref: "User", required: true },
     supervisorName: { type: String, required: true },
     date: { type: String, required: true },
     workers: [

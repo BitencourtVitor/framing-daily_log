@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 const secret = () => new TextEncoder().encode(process.env.JWT_SECRET!);
 
 export interface SessionPayload extends JWTPayload {
-  userId: string; // email
+  userId: string; // User ObjectId
   name: string;
   role: "admin" | "dev" | "supervisor";
 }
@@ -13,14 +13,14 @@ export async function createSession(payload: SessionPayload) {
   const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("12h")
+    .setExpirationTime("30d")
     .sign(secret());
 
   (await cookies()).set("session", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60 * 12,
+    maxAge: 60 * 60 * 24 * 30,
     path: "/",
   });
 }
