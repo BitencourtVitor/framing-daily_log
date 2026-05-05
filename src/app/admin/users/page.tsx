@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronRight, ShieldCheck, Plus, X, Check,
   Building2, UserCog, KeyRound, Pencil, Search,
-  Crown, Terminal, HardHat, Mail,
+  Crown, Terminal, HardHat, Mail, Loader2,
 } from "lucide-react";
 
 type CompanyId = "framing" | "hvac" | "pcg";
@@ -233,7 +233,9 @@ export default function ManageUsersPage() {
                   {selectedWorker && <span className="ml-auto text-primary font-semibold truncate max-w-32">{selectedWorker.name}</span>}
                 </label>
                 {loadingWorkers ? (
-                  <p className="text-xs text-muted-foreground">Loading…</p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 size={12} className="animate-spin" /> Loading…
+                  </div>
                 ) : workersError ? (
                   <p className="text-xs text-red-500">{workersError}</p>
                 ) : qbtWorkers.length === 0 ? (
@@ -335,7 +337,7 @@ export default function ManageUsersPage() {
             {selectedWorker && emailInput.trim() && pinFull && (
               <button onClick={createUser} disabled={saving}
                 className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 disabled:opacity-50">
-                {saving ? "Creating…" : "Create User"}
+                {saving ? <><Loader2 size={14} className="animate-spin" /> Creating…</> : "Create User"}
               </button>
             )}
           </div>
@@ -374,7 +376,9 @@ export default function ManageUsersPage() {
 
         <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5 flex flex-col gap-3">
           {users === null ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 size={14} className="animate-spin" /> Loading…
+            </div>
           ) : tabUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground">No users in this company.</p>
           ) : (
@@ -440,7 +444,8 @@ export default function ManageUsersPage() {
 
                       <button onClick={() => saveEdit(u._id)} disabled={editSaving}
                         className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-50">
-                        <Check size={14} /> {editSaving ? "Saving…" : "Save"}
+                        {editSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        {editSaving ? "Saving…" : "Save"}
                       </button>
                     </div>
                   )}

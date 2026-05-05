@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight, ShieldCheck, Building2, Plus, X, Check,
-  UserPlus, ToggleLeft, ToggleRight, Pencil,
+  UserPlus, ToggleLeft, ToggleRight, Pencil, Loader2,
 } from "lucide-react";
 
 interface Sub {
@@ -121,7 +121,9 @@ export default function AdminSubcontractorsPage() {
         {error && <p className="text-xs text-red-500 px-1">{error}</p>}
 
         {subs === null ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 size={14} className="animate-spin" /> Loading…
+          </div>
         ) : (
           subs.map((sub) => {
             const isEditing = editId === sub._id;
@@ -194,7 +196,8 @@ export default function AdminSubcontractorsPage() {
 
                     <button onClick={() => saveEdit(sub._id)} disabled={saving}
                       className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-50">
-                      <Check size={14} /> {saving ? "Saving…" : "Save"}
+                      {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                      {saving ? "Saving…" : "Save"}
                     </button>
                   </div>
                 )}

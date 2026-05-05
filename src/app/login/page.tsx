@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Sun, Moon, ChevronLeft } from "lucide-react";
+import { Sun, Moon, ChevronLeft, Loader2 } from "lucide-react";
 
 interface LoginUser { id: string; name: string; }
 
@@ -107,7 +107,9 @@ export default function LoginPage() {
               </div>
               <div className="w-full flex flex-col gap-2">
                 {users.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center">Loading…</p>
+                  <div className="flex justify-center py-4">
+                    <Loader2 size={20} className="animate-spin text-muted-foreground" />
+                  </div>
                 )}
                 {users.map((u) => (
                   <button key={u.id} onClick={() => selectUser(u)}
@@ -151,7 +153,11 @@ export default function LoginPage() {
               </div>
 
               {error && <p className="text-xs text-destructive text-center">{error}</p>}
-              {loading && <p className="text-xs text-muted-foreground text-center">Verifying…</p>}
+              {loading && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 size={14} className="animate-spin" /> Verifying…
+                </div>
+              )}
             </>
           )}
 

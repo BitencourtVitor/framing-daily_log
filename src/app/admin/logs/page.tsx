@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight, ShieldCheck, CalendarDays, User,
-  Camera, CheckCircle2, Clock, AlertCircle, RefreshCw, Layers, Building2,
+  Camera, CheckCircle2, Clock, AlertCircle, RefreshCw, Layers, Building2, Loader2,
 } from "lucide-react";
 
 interface LogEntry {
@@ -68,7 +68,9 @@ export default function AdminLogsPage() {
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 flex flex-col gap-3">
         {logs === null ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 size={14} className="animate-spin" /> Loading…
+          </div>
         ) : logs.length === 0 ? (
           <p className="text-sm text-muted-foreground">No logs yet.</p>
         ) : (

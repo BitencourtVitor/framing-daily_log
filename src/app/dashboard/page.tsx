@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   LogOut, Sun, Moon, ClipboardList, CheckCircle2, Clock,
-  CalendarDays, Users, Layers, AlertCircle, RefreshCw, History, ShieldCheck,
+  CalendarDays, Users, Layers, AlertCircle, RefreshCw, History, ShieldCheck, Loader2,
 } from "lucide-react";
 
 interface LogSummary {
@@ -154,7 +154,9 @@ export default function DashboardPage() {
           </div>
 
           {logs === null ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 size={14} className="animate-spin" /> Loading…
+            </div>
           ) : history.length === 0 ? (
             <p className="text-sm text-muted-foreground">No previous logs.</p>
           ) : (

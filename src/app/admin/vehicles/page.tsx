@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, ShieldCheck, Car, Plus, X, Check, Pencil, ToggleLeft, ToggleRight } from "lucide-react";
+import { ChevronRight, ShieldCheck, Car, Plus, X, Check, Pencil, ToggleLeft, ToggleRight, Loader2 } from "lucide-react";
 
 interface Vehicle {
   _id: string;
@@ -95,13 +95,15 @@ export default function AdminVehiclesPage() {
             {error && <p className="text-xs text-red-500">{error}</p>}
             <button onClick={create} disabled={saving}
               className="w-full bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg text-sm hover:opacity-90 disabled:opacity-50">
-              {saving ? "Saving…" : "Add Vehicle"}
+              {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : "Add Vehicle"}
             </button>
           </div>
         )}
 
         {vehicles === null ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 size={14} className="animate-spin" /> Loading…
+          </div>
         ) : vehicles.length === 0 ? (
           <p className="text-sm text-muted-foreground">No vehicles yet.</p>
         ) : (
@@ -143,7 +145,8 @@ export default function AdminVehiclesPage() {
                     {error && <p className="text-xs text-red-500">{error}</p>}
                     <button onClick={() => saveEdit(v._id)} disabled={saving}
                       className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-50">
-                      <Check size={14} /> {saving ? "Saving…" : "Save"}
+                      {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                      {saving ? "Saving…" : "Save"}
                     </button>
                   </div>
                 )}
