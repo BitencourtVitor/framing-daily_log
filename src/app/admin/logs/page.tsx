@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight, ShieldCheck, CalendarDays, User,
-  Camera, CheckCircle2, Clock, Layers, Loader2,
+  Camera, CheckCircle2, Clock, Layers, Loader2, RefreshCw,
 } from "lucide-react";
 
 interface LogEntry {

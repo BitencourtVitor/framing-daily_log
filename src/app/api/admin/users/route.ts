@@ -22,7 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   if (!(await guard())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { qbtId, name, email, role, companies, pin } = await req.json();
+  const { name, email, role, pin, qbtIds, companies } = await req.json();
 
   if (!email || !name || !role || !pin) {
     return NextResponse.json({ error: "email, name, role and pin are required" }, { status: 400 });
@@ -36,18 +36,27 @@ export async function POST(req: NextRequest) {
   const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) return NextResponse.json({ error: "User already exists" }, { status: 409 });
 
-  const primaryCompany: CompanyId | undefined = (companies ?? [])[0];
-  const qbtIds: Partial<Record<CompanyId, number>> = {};
-  if (primaryCompany && qbtId) qbtIds[primaryCompany] = Number(qbtId);
+  // qbtIds: { framing?: number|null, hvac?: number|null, pcg?: number|null }
+  const cleanQbtIds: Partial<Record<CompanyId, number>> = {};
+  for (const c of ["framing", "hvac", "pcg"] as CompanyId[]) {
+    const v = (qbtIds ?? {})[c];
+    if (v != null) cleanQbtIds[c] = Number(v);
+  }
+
+  // companies: derive from qbtIds keys if not provided
+  const derivedCompanies: CompanyId[] =
+    Array.isArray(companies) && companies.length > 0
+      ? companies
+      : (Object.keys(cleanQbtIds) as CompanyId[]);
 
   const hashed = await bcrypt.hash(pin, 12);
   const user = await User.create({
     name,
-    email,
+    email: email.toLowerCase().trim(),
     pin: hashed,
     role: role as UserRole,
-    companies: (companies ?? []) as CompanyId[],
-    qbtIds,
+    companies: derivedCompanies,
+    qbtIds: cleanQbtIds,
     active: true,
   });
 

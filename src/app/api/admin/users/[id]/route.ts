@@ -22,9 +22,21 @@ export async function PATCH(
   const body = await req.json();
   const update: Record<string, unknown> = { updatedAt: new Date() };
 
+  if (body.name !== undefined) update.name = String(body.name).trim();
+  if (body.email !== undefined) update.email = String(body.email).toLowerCase().trim();
   if (body.role !== undefined) update.role = body.role as UserRole;
   if (body.companies !== undefined) update.companies = body.companies as CompanyId[];
   if (body.active !== undefined) update.active = body.active as boolean;
+
+  if (body.qbtIds !== undefined) {
+    const cleanQbtIds: Partial<Record<CompanyId, number>> = {};
+    for (const c of ["framing", "hvac", "pcg"] as CompanyId[]) {
+      const v = body.qbtIds[c];
+      if (v != null) cleanQbtIds[c] = Number(v);
+    }
+    update.qbtIds = cleanQbtIds;
+  }
+
   if (body.pin !== undefined) {
     if (!/^\d{6}$/.test(body.pin)) {
       return NextResponse.json({ error: "PIN must be 6 digits" }, { status: 400 });

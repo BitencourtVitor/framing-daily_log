@@ -4,24 +4,27 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight, ShieldCheck, Plus, X, Check,
-  Building2, UserCog, KeyRound, Pencil, Search,
-  Crown, Terminal, HardHat, Mail, Loader2,
+  Building2, UserCog, KeyRound, Mail, Loader2,
+  Crown, Terminal, HardHat,
+  ChevronDown, Link2, Link2Off, UserCheck, User, Pencil,
 } from "lucide-react";
 
 type CompanyId = "framing" | "hvac" | "pcg";
 type UserRole = "admin" | "dev" | "supervisor";
+type AddRole = "admin" | "supervisor";
 
 interface AppUser {
-  _id: string;   // ObjectId string — stable system key
+  _id: string;
   name: string;
-  email: string; // unique, cross-company identifier
+  email: string;
   role: UserRole;
   companies: CompanyId[];
   qbtIds: Partial<Record<CompanyId, number>>;
   active: boolean;
 }
 
-interface QBTWorker { id: number; name: string; email: string; registered?: boolean; }
+interface QBTWorker { id: number; name: string; email: string; }
+type QBTLink = QBTWorker; // same shape, kept as alias for clarity
 
 const COMPANIES: { id: CompanyId; label: string; logo: string }[] = [
   { id: "framing", label: "Framing", logo: "/images/sublogo_framing.png" },
@@ -29,8 +32,7 @@ const COMPANIES: { id: CompanyId; label: string; logo: string }[] = [
   { id: "pcg",     label: "PCG",     logo: "/images/sublogo_pcg.png" },
 ];
 
-const ROLES: UserRole[] = ["admin", "dev", "supervisor"];
-const ADD_ROLES: UserRole[] = ["admin", "supervisor"];
+const ADD_ROLES: AddRole[] = ["admin", "supervisor"];
 
 const ROLE_COLORS: Record<UserRole, string> = {
   admin:      "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
@@ -44,6 +46,7 @@ const ROLE_ICONS: Record<UserRole, React.ElementType> = {
   supervisor: HardHat,
 };
 
+/* ─── PIN input ─────────────────────────────────────────────────────── */
 function PinInput({ label, pin, onChange, disabled }: {
   label: string; pin: string[]; onChange: (p: string[]) => void; disabled?: boolean;
 }) {
@@ -77,36 +80,37 @@ function PinInput({ label, pin, onChange, disabled }: {
 
 const EMPTY_PIN = ["", "", "", "", "", ""];
 
+/* ─── Main page ─────────────────────────────────────────────────────── */
 export default function ManageUsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<AppUser[] | null>(null);
   const [activeTab, setActiveTab] = useState<CompanyId>("framing");
   const [myId, setMyId] = useState<string | null>(null);
 
-  /* ── Modal state ── */
-  const [showModal, setShowModal] = useState(false);
-  const [modalCompany, setModalCompany] = useState<CompanyId | null>(null);
-  const [qbtWorkers, setQbtWorkers] = useState<QBTWorker[]>([]);
-  const [totalQbtWorkers, setTotalQbtWorkers] = useState(0);
-  const [workersError, setWorkersError] = useState("");
-  const [loadingWorkers, setLoadingWorkers] = useState(false);
-  const [workerSearch, setWorkerSearch] = useState("");
-  const [selectedWorker, setSelectedWorker] = useState<QBTWorker | null>(null);
-  const [emailInput, setEmailInput] = useState("");
-  const [role, setRole] = useState<UserRole>("supervisor");
-  const [companies, setCompanies] = useState<CompanyId[]>([]);
-  const [pin, setPin] = useState<string[]>(EMPTY_PIN);
-  const [pinConfirm, setPinConfirm] = useState<string[]>(EMPTY_PIN);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  /* ── Modal mode ── */
+  type ModalMode = "new" | "edit" | null;
+  const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
 
-  /* ── Edit state ── */
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editData, setEditData] = useState<Partial<AppUser>>({});
-  const [editPin, setEditPin] = useState<string[]>(EMPTY_PIN);
-  const [editPinConfirm, setEditPinConfirm] = useState<string[]>(EMPTY_PIN);
-  const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState("");
+  /* ── Form fields ── */
+  const [formName, setFormName] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formRole, setFormRole] = useState<AddRole>("supervisor");
+  const [formActive, setFormActive] = useState(true);
+
+  /* ── Per-company QBT links ── */
+  const [qbtLinks, setQbtLinks] = useState<Partial<Record<CompanyId, QBTLink | null>>>({});
+  const [companyWorkers, setCompanyWorkers] = useState<Partial<Record<CompanyId, QBTWorker[]>>>({});
+  const [companyLoading, setCompanyLoading] = useState<Partial<Record<CompanyId, boolean>>>({});
+  const [companyError, setCompanyError] = useState<Partial<Record<CompanyId, string>>>({});
+  const [companySearch, setCompanySearch] = useState<Partial<Record<CompanyId, string>>>({});
+  const [expandedCompany, setExpandedCompany] = useState<CompanyId | null>(null);
+
+  /* ── PIN ── */
+  const [formPin, setFormPin] = useState<string[]>(EMPTY_PIN);
+  const [formPinConfirm, setFormPinConfirm] = useState<string[]>(EMPTY_PIN);
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => {
@@ -121,229 +125,380 @@ export default function ManageUsersPage() {
     setUsers(Array.isArray(data) ? data : []);
   }
 
-  const loadWorkers = useCallback(async (c: CompanyId, existingUsers: AppUser[]) => {
-    setLoadingWorkers(true); setQbtWorkers([]); setTotalQbtWorkers(0); setWorkersError(""); setSelectedWorker(null); setWorkerSearch("");
+  /* ── Worker loading per company ── */
+  const loadCompanyWorkers = useCallback(async (c: CompanyId) => {
+    setCompanyLoading((prev) => ({ ...prev, [c]: true }));
+    setCompanyError((prev) => ({ ...prev, [c]: "" }));
     const res = await fetch(`/api/qbt/workers?company=${c}`);
     const data = await res.json();
-    if (!res.ok) { setWorkersError(data.error ?? "Failed to load workers."); setLoadingWorkers(false); return; }
-    const raw: QBTWorker[] = Array.isArray(data) ? data : [];
-    const existingEmails = new Set(existingUsers.map((u) => u.email).filter(Boolean));
-    const marked = raw.map((w) => ({ ...w, registered: !!w.email && existingEmails.has(w.email) }));
-    setTotalQbtWorkers(raw.length); setQbtWorkers(marked); setLoadingWorkers(false);
+    setCompanyLoading((prev) => ({ ...prev, [c]: false }));
+    if (!res.ok) {
+      setCompanyError((prev) => ({ ...prev, [c]: data.error ?? "Failed to load workers." }));
+      return;
+    }
+    const workers: QBTWorker[] = Array.isArray(data) ? data : [];
+    setCompanyWorkers((prev) => ({ ...prev, [c]: workers }));
+    // If editing and this company had a pre-populated placeholder, resolve the name
+    setQbtLinks((prev) => {
+      const existing = prev[c];
+      if (existing && !existing.email) {
+        const found = workers.find((w) => w.id === existing.id);
+        if (found) return { ...prev, [c]: found };
+      }
+      return prev;
+    });
   }, []);
 
-  function openModal() {
-    setShowModal(true); setModalCompany(null); setQbtWorkers([]); setTotalQbtWorkers(0); setWorkersError(""); setSelectedWorker(null);
-    setWorkerSearch(""); setEmailInput(""); setRole("supervisor"); setCompanies([]); setPin(EMPTY_PIN); setPinConfirm(EMPTY_PIN); setError("");
+  function toggleExpand(c: CompanyId) {
+    const next = expandedCompany === c ? null : c;
+    setExpandedCompany(next);
+    if (next && !companyWorkers[c] && !companyLoading[c]) loadCompanyWorkers(next);
   }
 
-  function closeModal() { setShowModal(false); }
 
-  function pickCompany(c: CompanyId) {
-    setModalCompany(c); setCompanies([c]); setSelectedWorker(null);
-    if (users) loadWorkers(c, users);
+  /* ── Open / close modal ── */
+  function openNew() {
+    setEditingUser(null);
+    setFormName(""); setFormEmail(""); setFormRole("supervisor"); setFormActive(true);
+    setQbtLinks({}); setCompanyWorkers({}); setCompanyLoading({}); setCompanyError({});
+    setCompanySearch({}); setExpandedCompany(null);
+    setFormPin(EMPTY_PIN); setFormPinConfirm(EMPTY_PIN);
+    setFormError(""); setModalMode("new");
   }
 
-  function toggleCompany(arr: CompanyId[], id: CompanyId): CompanyId[] {
-    return arr.includes(id) ? arr.filter((c) => c !== id) : [...arr, id];
+  function openEdit(u: AppUser) {
+    setEditingUser(u);
+    setFormName(u.name);
+    setFormEmail(u.email);
+    setFormRole(u.role === "dev" ? "admin" : (u.role as AddRole));
+    setFormActive(u.active);
+    // Pre-populate links (placeholder name until workers load)
+    const links: Partial<Record<CompanyId, QBTLink | null>> = {};
+    for (const c of ["framing", "hvac", "pcg"] as CompanyId[]) {
+      const id = u.qbtIds[c];
+      links[c] = id != null ? { id, name: `Worker #${id}`, email: "" } : null;
+    }
+    setQbtLinks(links);
+    setCompanyWorkers({}); setCompanyLoading({}); setCompanyError({});
+    setCompanySearch({}); setExpandedCompany(null);
+    setFormPin(EMPTY_PIN); setFormPinConfirm(EMPTY_PIN);
+    setFormError(""); setModalMode("edit");
   }
 
-  async function createUser() {
-    const pinStr = pin.join(""); const confirmStr = pinConfirm.join("");
-    if (!selectedWorker) { setError("Select a worker."); return; }
-    if (!emailInput.trim()) { setError("Email is required."); return; }
-    if (pinStr.length !== 6) { setError("Enter a 6-digit PIN."); return; }
-    if (pinStr !== confirmStr) { setError("PINs don't match."); return; }
-    setError(""); setSaving(true);
-    const res = await fetch("/api/admin/users", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qbtId: selectedWorker.id, name: selectedWorker.name, email: emailInput.trim(), role, companies, pin: pinStr }),
+  function closeModal() { setModalMode(null); setEditingUser(null); }
+
+  /* ── Submit ── */
+  async function submitForm() {
+    const pinStr = formPin.join("");
+    const confirmStr = formPinConfirm.join("");
+
+    if (!formName.trim()) { setFormError("Name required."); return; }
+    if (!effectiveEmail.trim()) { setFormError("Email required."); return; }
+
+    if (modalMode === "new") {
+      if (derivedCompanies.length === 0) { setFormError("Link at least one company."); return; }
+      if (pinStr.length !== 6) { setFormError("Enter a 6-digit PIN."); return; }
+      if (pinStr !== confirmStr) { setFormError("PINs don't match."); return; }
+    } else if (pinStr.length > 0) {
+      if (pinStr.length !== 6) { setFormError("PIN must be 6 digits."); return; }
+      if (pinStr !== confirmStr) { setFormError("PINs don't match."); return; }
+    }
+
+    const qbtIdsPayload: Partial<Record<CompanyId, number | null>> = {};
+    for (const c of ["framing", "hvac", "pcg"] as CompanyId[]) {
+      qbtIdsPayload[c] = qbtLinks[c]?.id ?? null;
+    }
+
+    const body: Record<string, unknown> = {
+      name: formName.trim(),
+      email: effectiveEmail.trim(),
+      role: formRole,
+      active: formActive,
+      qbtIds: qbtIdsPayload,
+      companies: derivedCompanies,
+    };
+    if (pinStr.length === 6) body.pin = pinStr;
+
+    setFormError(""); setFormSaving(true);
+    const url = modalMode === "edit" ? `/api/admin/users/${editingUser!._id}` : "/api/admin/users";
+    const method = modalMode === "edit" ? "PATCH" : "POST";
+    const res = await fetch(url, {
+      method, headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-    setSaving(false);
-    if (!res.ok) { setError((await res.json()).error); return; }
+    setFormSaving(false);
+    if (!res.ok) { setFormError((await res.json()).error ?? "Error."); return; }
     closeModal(); loadUsers();
   }
 
-  async function saveEdit(id: string) {
-    setEditError(""); setEditSaving(true);
-    const pinStr = editPin.join("");
-    const payload: Partial<AppUser & { pin: string }> = { ...editData };
-    if (pinStr.length === 6) {
-      if (pinStr !== editPinConfirm.join("")) { setEditError("PINs don't match."); setEditSaving(false); return; }
-      payload.pin = pinStr;
-    } else if (pinStr.length > 0) {
-      setEditError("PIN must be 6 digits."); setEditSaving(false); return;
-    }
-    const res = await fetch(`/api/admin/users/${id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    setEditSaving(false);
-    if (!res.ok) { setEditError((await res.json()).error); return; }
-    setEditId(null); setEditData({}); loadUsers();
+  /* ── Derived ── */
+  const derivedCompanies = (["framing", "hvac", "pcg"] as CompanyId[]).filter(
+    (c) => qbtLinks[c] != null
+  );
+
+  // First QBT email found across linked workers — authoritative, locks the email field
+  const qbtEmail = (["framing", "hvac", "pcg"] as CompanyId[])
+    .map((c) => qbtLinks[c]?.email)
+    .find((e) => !!e) ?? null;
+
+  const emailLocked = !!qbtEmail;
+  const effectiveEmail = qbtEmail ?? formEmail;
+
+  const pinFull = formPin.every((d) => d !== "");
+  const showPinConfirm = modalMode === "edit" ? formPin.some((d) => d !== "") : pinFull;
+
+  /* ── Per-company section — called as plain function to avoid remount on re-render ── */
+  function renderCompanySection({ id, label, logo }: { id: CompanyId; label: string; logo: string }) {
+    const linked = qbtLinks[id];
+    const isExpanded = expandedCompany === id;
+    const loading = !!companyLoading[id];
+    const error = companyError[id] ?? "";
+    const workers = companyWorkers[id] ?? [];
+    const search = companySearch[id] ?? "";
+
+    const existingEmails = new Set(
+      (users ?? [])
+        .filter((u) => modalMode !== "edit" || u._id !== editingUser?._id)
+        .map((u) => u.email)
+        .filter(Boolean)
+    );
+
+    const filtered = search.trim()
+      ? workers.filter((w) => {
+          const q = search.toLowerCase();
+          return w.name.toLowerCase().includes(q) || w.email.toLowerCase().includes(q);
+        })
+      : workers;
+
+    return (
+      <div key={id} className="border border-border/40 rounded-xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => toggleExpand(id)}
+          className="w-full flex items-center gap-3 px-4 py-3 bg-background hover:bg-accent/30 transition-colors"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logo} alt={label} className={`h-5 object-contain transition-all ${linked ? "" : "grayscale opacity-40"}`} />
+          <span className="text-sm font-medium text-foreground flex-1 text-left">{label}</span>
+          {linked ? (
+            <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium shrink-0">
+              <Link2 size={11} className="shrink-0" />
+              ID {linked.id}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">Not linked</span>
+          )}
+          <ChevronDown size={14} className={`text-muted-foreground transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`} />
+        </button>
+
+        {isExpanded && (
+          <div className="border-t border-border/40 px-4 py-3 space-y-3">
+            {/* Current link header */}
+            {linked && (
+              <div className="flex items-center justify-between gap-2 py-1">
+                <p className="text-xs font-semibold text-foreground">ID {linked.id}</p>
+                <button
+                  type="button"
+                  onClick={() => setQbtLinks((prev) => ({ ...prev, [id]: null }))}
+                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 shrink-0"
+                >
+                  <Link2Off size={11} /> Unlink
+                </button>
+              </div>
+            )}
+
+            {/* Workers list */}
+            {loading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 size={12} className="animate-spin" /> Loading workers…
+              </div>
+            ) : error ? (
+              <p className="text-xs text-red-500">{error}</p>
+            ) : workers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No workers found.</p>
+            ) : (
+              <>
+                <input
+                  value={search}
+                  onChange={(e) => setCompanySearch((prev) => ({ ...prev, [id]: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                  placeholder="Search name or email…"
+                />
+                <div className="overflow-y-auto max-h-44 space-y-1 pr-0.5">
+                  {filtered.map((w) => {
+                    const isSelected = qbtLinks[id]?.id === w.id;
+                    const isRegistered = !!w.email && existingEmails.has(w.email) && !isSelected;
+                    if (isRegistered) {
+                      return (
+                        <div key={w.id} className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border/20 bg-background/40 opacity-50 cursor-default">
+                          <div className="min-w-0">
+                            <p className="text-sm text-foreground truncate">{w.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{w.email || "—"}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-muted-foreground shrink-0 ml-2 flex items-center gap-1">
+                            <UserCheck size={10} /> Registered
+                          </span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        key={w.id}
+                        type="button"
+                        onClick={() => {
+                          const next = isSelected ? null : w;
+                          setQbtLinks((prev) => ({ ...prev, [id]: next }));
+                          if (next) setExpandedCompany(null); // auto-collapse on select
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors ${isSelected ? "bg-primary/5 border-primary/30 text-primary" : "bg-background border-border/40 text-foreground hover:border-border"}`}
+                      >
+                        <div className="min-w-0 text-left">
+                          <p className="truncate">{w.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{w.email || "—"}</p>
+                        </div>
+                        {isSelected && <Check size={14} className="shrink-0 ml-2" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
   }
 
-  const filteredWorkers = workerSearch.trim()
-    ? qbtWorkers.filter((w) => {
-        const q = workerSearch.toLowerCase();
-        return w.name.toLowerCase().includes(q) || w.email.toLowerCase().includes(q);
-      })
-    : qbtWorkers;
-
-  const pinFull = pin.every((d) => d !== "");
   const tabUsers = (users ?? []).filter((u) => u.companies.includes(activeTab));
 
   return (
     <>
       {/* ── Modal ── */}
-      {showModal && (
+      {modalMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" onClick={closeModal} />
 
-          {/* Panel */}
           <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-5 space-y-5 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-foreground">New User</p>
-              <button onClick={closeModal} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
+              <p className="text-sm font-semibold text-foreground">
+                {modalMode === "new" ? "New User" : "Edit User"}
+              </p>
+              <button type="button" onClick={closeModal} className="text-muted-foreground hover:text-foreground">
+                <X size={16} />
+              </button>
             </div>
 
-            {/* Company */}
+            {/* 1 — Name */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                <User size={11} /> Name
+              </label>
+              <input
+                type="text"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="Full name"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            {/* 2 — Role */}
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                <Building2 size={11} /> Company
+                <UserCog size={11} /> Role
               </label>
               <div className="flex gap-2">
-                {COMPANIES.map(({ id, label, logo }) => (
-                  <button key={id} onClick={() => pickCompany(id)}
-                    className={`flex-1 py-2.5 rounded-lg border text-xs font-semibold transition-colors flex flex-col items-center gap-1 ${modalCompany === id ? "bg-primary/5 border-primary text-primary" : "bg-background border-border/40 text-muted-foreground hover:border-border"}`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={logo} alt={label} className={`h-5 object-contain ${modalCompany === id ? "" : "grayscale opacity-50"}`} />
-                    {label}
-                  </button>
-                ))}
+                {ADD_ROLES.map((r) => {
+                  const Icon = ROLE_ICONS[r];
+                  return (
+                    <button
+                      key={r} type="button"
+                      onClick={() => setFormRole(r)}
+                      className={`flex-1 py-2 rounded-lg border text-xs font-semibold capitalize transition-colors flex items-center justify-center gap-1.5 ${formRole === r ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:border-border"}`}
+                    >
+                      <Icon size={12} />{r}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Worker list */}
-            {modalCompany && (
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                  <Search size={11} /> Select Worker
-                  {selectedWorker && <span className="ml-auto text-primary font-semibold truncate max-w-32">{selectedWorker.name}</span>}
-                </label>
-                {loadingWorkers ? (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 size={12} className="animate-spin" /> Loading…
-                  </div>
-                ) : workersError ? (
-                  <p className="text-xs text-red-500">{workersError}</p>
-                ) : qbtWorkers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No workers found for this company.</p>
-                ) : (
-                  <>
-                    <input value={workerSearch} onChange={(e) => setWorkerSearch(e.target.value)}
-                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
-                      placeholder="Search name or email…" />
-                    <div className="overflow-y-auto max-h-48 space-y-1 pr-0.5">
-                      {filteredWorkers.map((w) => {
-                        const sel = selectedWorker?.id === w.id;
-                        if (w.registered) {
-                          return (
-                            <div key={w.id} className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border/20 bg-background/40 opacity-50 cursor-default">
-                              <div className="min-w-0">
-                                <p className="text-sm text-foreground truncate">{w.name}</p>
-                                <p className="text-xs text-muted-foreground truncate">{w.email || "—"}</p>
-                              </div>
-                              <span className="text-[10px] font-semibold text-muted-foreground shrink-0 ml-2">Registered</span>
-                            </div>
-                          );
-                        }
-                        return (
-                          <button key={w.id} onClick={() => { const next = sel ? null : w; setSelectedWorker(next); setEmailInput(next?.email ?? ""); }}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-colors ${sel ? "bg-primary/5 border-primary/30 text-primary" : "bg-background border-border/40 text-foreground hover:border-border"}`}>
-                            <div className="min-w-0 text-left">
-                              <p className="truncate">{w.name}</p>
-                              <p className="text-xs text-muted-foreground truncate">{w.email || "—"}</p>
-                            </div>
-                            {sel && <Check size={14} className="shrink-0 ml-2" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
+            {/* Active toggle — edit only, not self */}
+            {modalMode === "edit" && editingUser?._id !== myId && (
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-muted-foreground font-medium">Active</label>
+                <button
+                  type="button"
+                  onClick={() => setFormActive((v) => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formActive ? "bg-primary" : "bg-foreground/20"}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${formActive ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
               </div>
             )}
 
-            {/* Email + Role + Companies + PIN */}
-            {selectedWorker && (
-              <>
-                {/* Email — disabled if from QBT, editable if missing */}
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                    <Mail size={11} /> Email
-                    {selectedWorker.email
-                      ? <span className="ml-auto text-[10px] text-muted-foreground/60">from QuickBooks Time</span>
-                      : <span className="ml-auto text-[10px] text-amber-500">required — not in QBT</span>}
-                  </label>
-                  <input
-                    type="email"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    disabled={!!selectedWorker.email}
-                    placeholder="worker@email.com"
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                </div>
+            {/* 3 — Companies / QBT links */}
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground font-medium flex items-center gap-2">
+                <Building2 size={11} /> Companies
+                {derivedCompanies.length > 0 && (
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                    {derivedCompanies.length} linked
+                  </span>
+                )}
+              </label>
+              <div className="space-y-2">
+                {COMPANIES.map((c) => renderCompanySection(c))}
+              </div>
+            </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground font-medium flex items-center gap-1"><UserCog size={11} /> Role</label>
-                  <div className="flex gap-2">
-                    {ADD_ROLES.map((r) => {
-                      const Icon = ROLE_ICONS[r];
-                      return (
-                        <button key={r} onClick={() => setRole(r)}
-                          className={`flex-1 py-2 rounded-lg border text-xs font-semibold capitalize transition-colors flex items-center justify-center gap-1.5 ${role === r ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:border-border"}`}>
-                          <Icon size={12} />{r}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+            {/* 4 — Email (locked if QBT provides one) */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                <Mail size={11} /> Email
+                {emailLocked && (
+                  <span className="ml-auto text-[10px] text-muted-foreground/60">from QuickBooks Time</span>
+                )}
+              </label>
+              <input
+                type="email"
+                value={effectiveEmail}
+                onChange={(e) => !emailLocked && setFormEmail(e.target.value)}
+                disabled={emailLocked}
+                placeholder="worker@premiumgrpinc.com"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+            </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground font-medium flex items-center gap-1"><Building2 size={11} /> Also in</label>
-                  <div className="flex gap-2">
-                    {COMPANIES.map(({ id, label }) => {
-                      const sel = companies.includes(id);
-                      return (
-                        <button key={id} onClick={() => setCompanies(toggleCompany(companies, id))}
-                          className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition-colors ${sel ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground"}`}>
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <PinInput label="PIN" pin={pin} onChange={setPin} />
-                {pinFull && <PinInput label="Confirm PIN" pin={pinConfirm} onChange={setPinConfirm} />}
-              </>
+            {/* 5 — PIN */}
+            <PinInput
+              label={modalMode === "edit" ? "Reset PIN (leave blank to keep)" : "PIN"}
+              pin={formPin}
+              onChange={(p) => { setFormPin(p); setFormPinConfirm(EMPTY_PIN); }}
+            />
+            {showPinConfirm && (
+              <PinInput label="Confirm PIN" pin={formPinConfirm} onChange={setFormPinConfirm} />
             )}
 
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {formError && <p className="text-xs text-red-500">{formError}</p>}
 
-            {selectedWorker && emailInput.trim() && pinFull && (
-              <button onClick={createUser} disabled={saving}
-                className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 disabled:opacity-50">
-                {saving ? <><Loader2 size={14} className="animate-spin" /> Creating…</> : "Create User"}
-              </button>
-            )}
+            {/* Submit */}
+            <button
+              type="button"
+              onClick={submitForm}
+              disabled={formSaving}
+              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              {formSaving
+                ? <><Loader2 size={14} className="animate-spin" /> {modalMode === "edit" ? "Saving…" : "Creating…"}</>
+                : modalMode === "edit" ? "Save Changes" : "Create User"}
+            </button>
           </div>
         </div>
       )}
 
+      {/* ── Page ── */}
       <div className="min-h-screen flex flex-col">
         <header className="sticky top-0 z-10 h-14 bg-card/80 backdrop-blur-sm border-b border-border flex items-center px-4 gap-3 shrink-0">
           <button onClick={() => router.push("/admin")} className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -353,8 +508,10 @@ export default function ManageUsersPage() {
             <ShieldCheck size={16} className="text-primary" />
             <p className="text-sm font-semibold text-foreground">Manage Users</p>
           </div>
-          <button onClick={openModal}
-            className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-90">
+          <button
+            onClick={openNew}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-90"
+          >
             <Plus size={14} /> Add User
           </button>
         </header>
@@ -383,72 +540,31 @@ export default function ManageUsersPage() {
             <p className="text-sm text-muted-foreground">No users in this company.</p>
           ) : (
             tabUsers.map((u) => {
-              const isEditing = editId === u._id;
+              const RoleIcon = ROLE_ICONS[u.role];
               return (
-                <div key={u._id} className="bg-card border border-border/40 rounded-xl px-4 py-3 space-y-3">
+                <div key={u._id} className="bg-card border border-border/40 rounded-xl px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
-                      <p className="text-xs text-muted-foreground">{u.email}</p>
+                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {(() => { const Icon = ROLE_ICONS[u.role]; return (
-                        <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${ROLE_COLORS[u.role]}`}>
-                          <Icon size={10} />{u.role}
-                        </span>
-                      ); })()}
+                      {!u.active && (
+                        <span className="text-[10px] font-semibold text-muted-foreground/60 bg-muted/40 px-2 py-0.5 rounded-full">Inactive</span>
+                      )}
+                      <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${ROLE_COLORS[u.role]}`}>
+                        <RoleIcon size={10} />{u.role}
+                      </span>
                       {u.role !== "dev" && (
-                        <button onClick={() => {
-                          if (isEditing) { setEditId(null); setEditData({}); setEditPin(EMPTY_PIN); setEditPinConfirm(EMPTY_PIN); setEditError(""); }
-                          else { setEditId(u._id); setEditData({ role: u.role, active: u.active }); setEditPin(EMPTY_PIN); setEditPinConfirm(EMPTY_PIN); setEditError(""); }
-                        }} className="text-primary"><Pencil size={14} /></button>
+                        <button
+                          onClick={() => openEdit(u)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                          <Pencil size={14} />
+                        </button>
                       )}
                     </div>
                   </div>
-
-                  {isEditing && (
-                    <div className="space-y-3 pt-1 border-t border-border/40">
-                      {u._id !== myId && (
-                        <div>
-                          <label className="text-xs text-muted-foreground font-medium flex items-center gap-1"><UserCog size={11} /> Role</label>
-                          <div className="flex gap-2 mt-1">
-                            {ADD_ROLES.map((r) => {
-                              const Icon = ROLE_ICONS[r];
-                              return (
-                                <button key={r} onClick={() => setEditData({ ...editData, role: r })}
-                                  className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold capitalize transition-colors flex items-center justify-center gap-1 ${editData.role === r ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground"}`}>
-                                  <Icon size={11} />{r}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {u._id !== myId && (
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs text-muted-foreground font-medium">Active</label>
-                          <button onClick={() => setEditData({ ...editData, active: !editData.active })}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editData.active ? "bg-primary" : "bg-foreground/20"}`}>
-                            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${editData.active ? "translate-x-6" : "translate-x-1"}`} />
-                          </button>
-                        </div>
-                      )}
-
-                      <PinInput label="Reset PIN (leave blank to keep)" pin={editPin} onChange={(p) => { setEditPin(p); setEditPinConfirm(EMPTY_PIN); }} />
-                      {editPin.every((d) => d !== "") && (
-                        <PinInput label="Confirm PIN" pin={editPinConfirm} onChange={setEditPinConfirm} />
-                      )}
-
-                      {editError && <p className="text-xs text-red-500">{editError}</p>}
-
-                      <button onClick={() => saveEdit(u._id)} disabled={editSaving}
-                        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-50">
-                        {editSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                        {editSaving ? "Saving…" : "Save"}
-                      </button>
-                    </div>
-                  )}
                 </div>
               );
             })

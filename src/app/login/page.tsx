@@ -13,6 +13,8 @@ const ROLE_ICONS: Record<UserRole, React.ElementType> = {
   dev:        Terminal,
   supervisor: HardHat,
 };
+const ROLE_ORDER: Record<UserRole, number> = { supervisor: 0, admin: 1, dev: 2 };
+
 const ROLE_COLORS: Record<UserRole, string> = {
   admin:      "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
   dev:        "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
@@ -141,22 +143,28 @@ export default function LoginPage() {
                     <Loader2 size={20} className="animate-spin text-muted-foreground" />
                   </div>
                 )}
-                {users.map((u) => {
-                  const Icon = ROLE_ICONS[u.role];
-                  return (
-                    <button key={u.id} onClick={() => selectUser(u)}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border/40 bg-background hover:border-primary hover:bg-primary/5 transition-colors text-left">
-                      <span className={`w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${ROLE_COLORS[u.role]}`}>
-                        <Icon size={14} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
-                        {u.email && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
-                      </div>
-                    </button>
-                  );
-                })}
+                {[...users]
+                  .sort((a, b) => {
+                    const rd = ROLE_ORDER[a.role] - ROLE_ORDER[b.role];
+                    return rd !== 0 ? rd : a.name.localeCompare(b.name);
+                  })
+                  .map((u) => {
+                    const Icon = ROLE_ICONS[u.role];
+                    return (
+                      <button key={u.id} onClick={() => selectUser(u)}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border/40 bg-background hover:border-primary hover:bg-primary/5 transition-colors text-left">
+                        <span className={`w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${ROLE_COLORS[u.role]}`}>
+                          <Icon size={14} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{u.name}</p>
+                          {u.email && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
+                        </div>
+                      </button>
+                    );
+                  })}
               </div>
+
             </>
           ) : (
             /* ── Step 2: PIN ── */
