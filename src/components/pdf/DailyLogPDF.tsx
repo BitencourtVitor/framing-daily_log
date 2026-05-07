@@ -5,6 +5,7 @@ import {
   View,
   Text,
   Image,
+  Link,
   StyleSheet,
   Svg,
   Path,
@@ -232,6 +233,7 @@ export interface PDFPhoto {
   activityIndex: number | null;
   dataUrl: string;
   filename: string;
+  publicUrl?: string;
 }
 
 export interface PDFActivity {
@@ -419,7 +421,13 @@ export function DailyLogPDF({ log, photos }: { log: PDFLogData; photos: PDFPhoto
                         <View style={s.photoGrid3}>
                           {actPhotos.map((p, pi) => (
                             <View key={pi} style={s.photoWrap3}>
-                              <Image src={p.dataUrl} style={s.photoImg3} />
+                              {p.publicUrl ? (
+                                <Link src={p.publicUrl}>
+                                  <Image src={p.dataUrl} style={s.photoImg3} />
+                                </Link>
+                              ) : (
+                                <Image src={p.dataUrl} style={s.photoImg3} />
+                              )}
                             </View>
                           ))}
                         </View>
@@ -480,7 +488,13 @@ export function DailyLogPDF({ log, photos }: { log: PDFLogData; photos: PDFPhoto
               <View style={s.photoGrid1}>
                 {generalPhotos.map((p, i) => (
                   <View key={i} style={s.photoWrap1} wrap={false}>
-                    <Image src={p.dataUrl} style={s.photoImg1} />
+                    {p.publicUrl ? (
+                      <Link src={p.publicUrl}>
+                        <Image src={p.dataUrl} style={s.photoImg1} />
+                      </Link>
+                    ) : (
+                      <Image src={p.dataUrl} style={s.photoImg1} />
+                    )}
                     <Text style={s.photoCaption}>{p.filename}</Text>
                   </View>
                 ))}

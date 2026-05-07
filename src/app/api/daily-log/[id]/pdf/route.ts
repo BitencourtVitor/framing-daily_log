@@ -38,6 +38,8 @@ export async function GET(
 
   const dbPhotos = await Photo.find({ logId: id }).sort({ activityIndex: 1, createdAt: 1 }).lean();
 
+  const baseUrl = new URL(req.url).origin;
+
   const pdfPhotos: PDFPhoto[] = (
     await Promise.all(
       dbPhotos.map(async (p) => {
@@ -47,7 +49,8 @@ export async function GET(
           activityIndex: p.activityIndex ?? null,
           dataUrl: photoToDataUrl(buf, p.mimetype),
           filename: p.filename,
-        } satisfies PDFPhoto;
+          publicUrl: `${baseUrl}/api/photo/public?key=${encodeURIComponent(p.storageKey)}`,
+        } as PDFPhoto;
       })
     )
   ).filter((p): p is PDFPhoto => p !== null);
