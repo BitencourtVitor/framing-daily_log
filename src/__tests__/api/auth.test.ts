@@ -76,7 +76,7 @@ describe("POST /api/auth/login", () => {
 
 describe("POST /api/auth/logout", () => {
   it("200 always (no-op mock)", async () => {
-    const res = await logout(req("POST", {}));
+    const res = await logout();
     expect(res.status).toBe(200);
   });
 });
