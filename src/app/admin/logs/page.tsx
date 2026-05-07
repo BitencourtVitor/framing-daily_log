@@ -33,7 +33,7 @@ export default function AdminLogsPage() {
   const [exporting, setExporting]   = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/me").then((r) => r.ok ? r.json() : {}).then((d) => {
+    fetch("/api/me").then((r) => r.ok ? r.json() : {} as { role?: string }).then((d) => {
       if (d.role !== "admin" && d.role !== "dev") router.replace("/dashboard");
     });
     load();

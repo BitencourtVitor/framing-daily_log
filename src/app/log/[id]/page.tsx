@@ -124,7 +124,7 @@ export default function LogDetailPage() {
     Promise.all([
       fetch(`/api/daily-log/${id}`).then((r) => (r.ok ? r.json() : Promise.reject())),
       fetch(`/api/daily-log/${id}/photos`).then((r) => (r.ok ? r.json() : [])),
-      fetch("/api/me").then((r) => r.ok ? r.json() : {}),
+      fetch("/api/me").then((r) => r.ok ? r.json() : {} as { userId?: string }),
     ])
       .then(([logData, photosData, me]) => {
         setLog(logData);

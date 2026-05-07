@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const today = localToday();
 
   useEffect(() => {
-    fetch("/api/me").then((r) => r.ok ? r.json() : {}).then((d) => { setName(d.name ?? ""); setRole(d.role ?? ""); });
+    fetch("/api/me").then((r) => r.ok ? r.json() : {} as { name?: string; role?: string }).then((d) => { setName(d.name ?? ""); setRole(d.role ?? ""); });
     fetch("/api/daily-log").then((r) => r.ok ? r.json() : []).then(setLogs);
   }, []);
 
