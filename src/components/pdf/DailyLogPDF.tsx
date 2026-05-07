@@ -158,7 +158,7 @@ const s = StyleSheet.create({
   },
   actBadgeText: { fontSize: 7.5, fontFamily: "Helvetica-Bold" },
   actNum: { fontSize: 8, color: C.muted },
-  actBody: { paddingHorizontal: 14, paddingBottom: 12 },
+  actBody: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12 },
   actDesc: { fontSize: 9, color: C.foreground, lineHeight: 1.55, marginBottom: 6 },
   actMeta: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 6 },
   actMetaItem: { flexDirection: "row", alignItems: "center" },
@@ -174,12 +174,15 @@ const s = StyleSheet.create({
   photoWrap3: { width: "31%", borderRadius: 5, overflow: "hidden", backgroundColor: C.mutedBg },
   photoImg3:  { width: "100%", objectFit: "contain" },
 
-  // Photo grid — general (2 col, full image height)
-  photoGrid2: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  photoWrap2: { width: "48%", borderRadius: 6, overflow: "hidden", backgroundColor: C.mutedBg },
-  photoImg2:  { width: "100%", objectFit: "contain" },
+  // Photo grid — general (1 col, full width)
+  photoGrid1: { flexDirection: "column", gap: 12 },
+  photoWrap1: { width: "100%", borderRadius: 6, overflow: "hidden", backgroundColor: C.mutedBg },
+  photoImg1:  { width: "100%", objectFit: "contain" },
 
   photoCaption: { fontSize: 6.5, color: C.muted, marginTop: 2, textAlign: "center" },
+
+  // Logo in header
+  topBarLogo: { width: 30, height: 30, objectFit: "contain" },
 
   // Notes
   noteBlock: { marginBottom: 12 },
@@ -272,6 +275,7 @@ export interface PDFLogData {
   activities: PDFActivity[];
   subcontractors: PDFSub[];
   notes: PDFNotes;
+  logoSrc?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -306,6 +310,7 @@ function TopBar({ log }: { log: PDFLogData }) {
     <View style={s.topBar} fixed>
       <View style={s.topBarLeft}>
         <View style={s.topBarAccent} />
+        {log.logoSrc && <Image src={log.logoSrc} style={s.topBarLogo} />}
         <View>
           <Text style={s.topBarTitle}>Daily Log</Text>
           <Text style={s.topBarSub}>Premium Framing</Text>
@@ -472,10 +477,10 @@ export function DailyLogPDF({ log, photos }: { log: PDFLogData; photos: PDFPhoto
           {generalPhotos.length > 0 && (
             <>
               <SectionHeader title="General Photos" />
-              <View style={s.photoGrid2}>
+              <View style={s.photoGrid1}>
                 {generalPhotos.map((p, i) => (
-                  <View key={i} style={s.photoWrap2}>
-                    <Image src={p.dataUrl} style={s.photoImg2} />
+                  <View key={i} style={s.photoWrap1} wrap={false}>
+                    <Image src={p.dataUrl} style={s.photoImg1} />
                     <Text style={s.photoCaption}>{p.filename}</Text>
                   </View>
                 ))}

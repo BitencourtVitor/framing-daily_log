@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { getSession } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import { DailyLog, IDailyLog } from "@/models/DailyLog";
@@ -8,6 +10,15 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { DailyLogPDF, PDFPhoto } from "@/components/pdf/DailyLogPDF";
 import React from "react";
 import { DocumentProps } from "@react-pdf/renderer";
+
+function logoDataUrl() {
+  try {
+    const buf = readFileSync(join(process.cwd(), "public/images/minilogo_black.png"));
+    return `data:image/png;base64,${buf.toString("base64")}`;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function GET(
   req: NextRequest,
@@ -47,6 +58,7 @@ export async function GET(
     status: log.status,
     createdAt: (log.createdAt as Date).toISOString(),
     locationPath: log.locationPath ?? [],
+    logoSrc: logoDataUrl(),
     activities: (log.activities ?? []).map((a) => ({
       description: a.description,
       timeStart: a.timeStart,
