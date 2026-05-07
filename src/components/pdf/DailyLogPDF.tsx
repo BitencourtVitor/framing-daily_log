@@ -443,7 +443,7 @@ export function DailyLogPDF({ log, photos }: { log: PDFLogData; photos: PDFPhoto
           <SectionHeader title="Site Notes" />
           <View style={s.card}>
             {/* Machines */}
-            <View style={s.noteBlock}>
+            <View style={[s.noteBlock, { marginBottom: 12 }]} wrap={false}>
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
                 <Icon d={ICONS.wrench} color={C.muted} size={9} />
                 <Text style={s.noteLabel}>Machines &amp; Equipment on Site</Text>
@@ -468,7 +468,7 @@ export function DailyLogPDF({ log, photos }: { log: PDFLogData; photos: PDFPhoto
               { label: "Plan for Next Day",    value: log.notes.nextDayPlan,     na: log.notes.nextDayPlanNA },
               { label: "Notes for Supervisor", value: log.notes.supervisorNotes, na: log.notes.supervisorNotesNA },
             ].map(({ label, value, na }) => (
-              <View key={label} style={s.noteBlock}>
+              <View key={label} style={s.noteBlock} wrap={false}>
                 <Text style={s.noteLabel}>{label}</Text>
                 {na ? (
                   <Text style={s.noteNA}>Not applicable</Text>
@@ -480,6 +480,32 @@ export function DailyLogPDF({ log, photos }: { log: PDFLogData; photos: PDFPhoto
               </View>
             ))}
           </View>
+
+          {/* Subcontractors */}
+          {log.subcontractors && log.subcontractors.length > 0 && (
+            <>
+              <SectionHeader title="Subcontractors" />
+              <View style={s.card} wrap={false}>
+                {log.subcontractors.map((sub, i) => (
+                  <View key={i} style={[s.noteBlock, i < log.subcontractors.length - 1 ? { borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 10, marginBottom: 10 } : {}]}>
+                    <Text style={[s.noteLabel, { fontSize: 9, color: C.foreground, fontFamily: "Helvetica-Bold", textTransform: "none", letterSpacing: 0 }]}>{sub.company}</Text>
+                    {sub.workerNames.length > 0 && (
+                      <View style={s.chipsRow}>
+                        {sub.workerNames.map((w, wi) => (
+                          <View key={wi} style={s.chip}>
+                            <Text style={s.chipText}>{w}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    {sub.description ? (
+                      <Text style={[s.noteText, { marginTop: 4 }]}>{sub.description}</Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
 
           {/* General photos */}
           {generalPhotos.length > 0 && (

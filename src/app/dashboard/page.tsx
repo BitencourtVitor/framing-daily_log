@@ -82,9 +82,7 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-10 h-14 bg-card/80 backdrop-blur-sm border-b border-border flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/minilogo_black.png" alt="Premium Framing" width={28} height={28} className="object-contain dark:hidden" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/minilogo_white.png" alt="Premium Framing" width={28} height={28} className="object-contain hidden dark:block" />
+          <img src="/images/sublogo_framing.png" alt="Premium Framing" width={28} height={28} className="object-contain" />
           <div>
             <p className="text-sm font-medium leading-tight text-foreground">Daily Log</p>
             <p className="text-[10px] text-muted-foreground leading-tight">Premium Framing</p>

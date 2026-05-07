@@ -14,6 +14,7 @@ export interface IActivity {
   timeStart: string;
   timeEnd: string;
   workType: WorkType;
+  chargeableSub?: string;
 }
 
 export interface ISubcontractorEntry {
@@ -81,6 +82,7 @@ const DailyLogSchema = new Schema<IDailyLog>(
           enum: ["normal", "back-charge", "extra", "warranty"],
           required: true,
         },
+        chargeableSub: { type: String, default: "" },
       },
     ],
     subcontractors: [

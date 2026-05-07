@@ -122,9 +122,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo_black.png" alt="Premium Framing" width={200} height={54} className="object-contain dark:hidden" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo_white.png" alt="Premium Framing" width={200} height={54} className="object-contain hidden dark:block" />
+          <img src="/images/sublogo_framing.png" alt="Premium Framing" width={200} height={54} className="object-contain" />
           <span className="text-3xl font-semibold tracking-tight text-foreground">Daily Log</span>
         </div>
 

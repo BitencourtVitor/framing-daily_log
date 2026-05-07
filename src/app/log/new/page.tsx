@@ -30,6 +30,8 @@ import {
   MapPin,
   Loader2,
   Ban,
+  Building2,
+  Download,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -44,6 +46,7 @@ interface Activity {
   timeStart: string;
   timeEnd: string;
   workType: "normal" | "back-charge" | "extra" | "warranty";
+  chargeableSub?: string;
   photos: File[];
 }
 
@@ -96,7 +99,7 @@ const TODAY = localDateStr();
 
 const EMPTY_ACTIVITY: Activity = {
   workerNames: [], description: "", timeStart: "07:00", timeEnd: "17:00",
-  workType: "normal", photos: [],
+  workType: "normal", chargeableSub: "", photos: [],
 };
 const EMPTY_NOTES: FormNotes = {
   machineEntries: [], machinesNA: false,
@@ -131,6 +134,15 @@ export default function NewLogPage() {
   const [editActIdx, setEditActIdx]   = useState<number | null>(null);
   const [draftAct, setDraftAct]       = useState<Activity>({ ...EMPTY_ACTIVITY });
 
+  // Activity confirm modal
+  const [actConfirmModal, setActConfirmModal]             = useState(false);
+  const [confirmedActivityCount, setConfirmedActivityCount] = useState(0);
+
+  // Submit modal
+  const [submitModal, setSubmitModal]                       = useState(false);
+  const [submittedLogId, setSubmittedLogId]                 = useState("");
+  const [submitModalCloseEnabled, setSubmitModalCloseEnabled] = useState(false);
+
   // Location sheet
   const [locSheet, setLocSheet]           = useState(false);
   const [locPath, setLocPath]             = useState<QBTJobcode[]>([]);
@@ -152,6 +164,8 @@ export default function NewLogPage() {
   function openEditActivity(i: number) { setDraftAct({ ...form.activities[i] }); setEditActIdx(i); setActSheet(true); }
 
   function confirmActivity() {
+    const isEdit = editActIdx !== null;
+    const newCount = isEdit ? form.activities.length : form.activities.length + 1;
     setForm((f) => {
       const acts = [...f.activities];
       if (editActIdx !== null) acts[editActIdx] = draftAct;
@@ -159,6 +173,10 @@ export default function NewLogPage() {
       return { ...f, activities: acts };
     });
     setActSheet(false);
+    if (!isEdit) {
+      setConfirmedActivityCount(newCount);
+      setActConfirmModal(true);
+    }
   }
 
   function removeActivity(i: number) {
@@ -218,8 +236,9 @@ export default function NewLogPage() {
     if (dateBlocked) return "A log already exists for this date.";
     if (!form.locationId) return "Select a jobsite before submitting.";
     if (form.activities.length === 0) return "Add at least one activity before submitting.";
-    const bcIdx = form.activities.findIndex((a) => a.workType === "back-charge" && a.photos.length < 5);
-    if (bcIdx !== -1) return `Activity ${bcIdx + 1} (Back Charge) requires at least 5 photos.`;
+    const bcIdx = form.activities.findIndex((a) => a.workType === "back-charge" && a.photos.length < 2);
+    if (bcIdx !== -1) return `Activity ${bcIdx + 1} (Back Charge) requires at least 2 photos.`;
+    if (form.photos.length < 5) return "Add at least 5 general photos before submitting.";
     return null;
   }
 
@@ -246,8 +265,13 @@ export default function NewLogPage() {
             timeStart: a.timeStart,
             timeEnd: a.timeEnd,
             workType: a.workType,
+            chargeableSub: a.chargeableSub || undefined,
           })),
-          subcontractors: [],
+          subcontractors: form.subcontractors.map((s) => ({
+            company: s.company,
+            workerNames: s.workerNames,
+            description: s.description,
+          })),
           notes: {
             machineEntries: form.notes.machineEntries,
             machinesNA: form.notes.machinesNA,
@@ -288,7 +312,10 @@ export default function NewLogPage() {
         await uploadFile(photo);
       }
 
-      router.push("/dashboard");
+      setSubmittedLogId(id);
+      setSubmitModalCloseEnabled(false);
+      setSubmitModal(true);
+      setTimeout(() => setSubmitModalCloseEnabled(true), 3000);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Network error. Please try again.");
     } finally {
@@ -357,6 +384,14 @@ export default function NewLogPage() {
             </div>
           </PageSection>
 
+          {/* Subcontractors */}
+          <PageSection title="Subcontractors" icon={Building2}>
+            <SubcontractorSection
+              subcontractors={form.subcontractors}
+              onChange={(subs) => setForm((f) => ({ ...f, subcontractors: subs }))}
+            />
+          </PageSection>
+
           <hr className="border-border/40 -mx-4" />
 
           {/* Notes */}
@@ -387,6 +422,8 @@ export default function NewLogPage() {
           <PageSection title="General Photos" icon={Camera}>
             <PhotoSection
               photos={form.photos}
+              required={5}
+              requireLabel="At least 5 general photos are required"
               onAdd={(files) => setForm((f) => ({ ...f, photos: [...f.photos, ...files] }))}
               onRemove={(i) => setForm((f) => ({ ...f, photos: f.photos.filter((_, idx) => idx !== i) }))}
             />
@@ -432,6 +469,21 @@ export default function NewLogPage() {
         onConfirm={confirmActivity}
       />
 
+      {/* Activity confirm modal */}
+      <ActivityConfirmModal
+        open={actConfirmModal}
+        activityNumber={confirmedActivityCount}
+        onAddAnother={() => { setActConfirmModal(false); openAddActivity(); }}
+        onContinue={() => setActConfirmModal(false)}
+      />
+
+      {/* Submit success modal */}
+      <SubmitModal
+        open={submitModal}
+        logId={submittedLogId}
+        closeEnabled={submitModalCloseEnabled}
+        onClose={() => { setSubmitModal(false); router.push("/dashboard"); }}
+      />
     </>
   );
 }
@@ -601,13 +653,97 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
   );
 }
 
+// ─── Subcontractor section ────────────────────────────────────────────────────
+
+function SubcontractorSection({ subcontractors, onChange }: {
+  subcontractors: SubEntry[];
+  onChange: (subs: SubEntry[]) => void;
+}) {
+  const [adding, setAdding]           = useState(false);
+  const [draftCompany, setDraftCompany]     = useState("");
+  const [draftWorkers, setDraftWorkers]     = useState("");
+  const [draftDesc, setDraftDesc]           = useState("");
+
+  function addSub() {
+    if (!draftCompany.trim()) return;
+    const workerNames = draftWorkers.split(",").map((w) => w.trim()).filter(Boolean);
+    onChange([...subcontractors, { company: draftCompany.trim(), workerNames, description: draftDesc.trim() }]);
+    setDraftCompany(""); setDraftWorkers(""); setDraftDesc(""); setAdding(false);
+  }
+
+  function removeSub(i: number) {
+    onChange(subcontractors.filter((_, idx) => idx !== i));
+  }
+
+  return (
+    <div className="space-y-2">
+      {subcontractors.map((s, i) => (
+        <div key={i} className="bg-card border border-border/40 rounded-xl px-4 py-3 space-y-1.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Building2 size={13} className="text-primary shrink-0 mt-0.5" />
+              <p className="text-sm font-semibold text-foreground">{s.company}</p>
+            </div>
+            <button onClick={() => removeSub(i)} className="p-1 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+              <X size={13} />
+            </button>
+          </div>
+          {s.workerNames.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-5">
+              <Users size={11} /><span>{s.workerNames.join(", ")}</span>
+            </div>
+          )}
+          {s.description && (
+            <p className="text-xs text-muted-foreground pl-5 line-clamp-2">{s.description}</p>
+          )}
+        </div>
+      ))}
+
+      {adding ? (
+        <div className="bg-background border border-primary/20 rounded-xl p-3 space-y-2">
+          <input
+            autoFocus
+            value={draftCompany}
+            onChange={(e) => setDraftCompany(e.target.value)}
+            placeholder="Company / Team name…"
+            className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
+          />
+          <input
+            value={draftWorkers}
+            onChange={(e) => setDraftWorkers(e.target.value)}
+            placeholder="People involved (comma-separated)…"
+            className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
+          />
+          <textarea
+            value={draftDesc}
+            onChange={(e) => setDraftDesc(e.target.value)}
+            rows={2}
+            placeholder="What was done…"
+            className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none"
+          />
+          <div className="flex gap-2">
+            <button onClick={() => { setAdding(false); setDraftCompany(""); setDraftWorkers(""); setDraftDesc(""); }} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">
+              Cancel
+            </button>
+            <button onClick={addSub} disabled={!draftCompany.trim()} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold disabled:opacity-40 transition-opacity">
+              Add
+            </button>
+          </div>
+        </div>
+      ) : (
+        <AddItemButton onClick={() => setAdding(true)} label="Add Subcontractor" />
+      )}
+    </div>
+  );
+}
+
 // ─── Summary cards ────────────────────────────────────────────────────────────
 
 function ActivityCard({ activity, index, onEdit, onRemove }: { activity: Activity; index: number; onEdit: () => void; onRemove: () => void }) {
   const fmt = (t: string) => { const [h, m] = t.split(":").map(Number); return `${(h % 12) || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
   const cfg = WORK_TYPE_CONFIG[activity.workType];
   const isBC = activity.workType === "back-charge";
-  const needsPhotos = isBC && activity.photos.length < 5;
+  const needsPhotos = isBC && activity.photos.length < 2;
 
   return (
     <div className={`bg-card border rounded-xl px-4 py-3 space-y-2.5 border-l-[3px] ${cfg.border} ${needsPhotos ? "border-amber-400/60" : "border-border/40"}`}>
@@ -648,7 +784,7 @@ function ActivityCard({ activity, index, onEdit, onRemove }: { activity: Activit
 
       {needsPhotos && (
         <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-          <AlertTriangle size={10} />Back Charge requires at least 5 photos ({5 - activity.photos.length} more needed)
+          <AlertTriangle size={10} />Back Charge requires at least 2 photos ({2 - activity.photos.length} more needed)
         </p>
       )}
     </div>
@@ -912,7 +1048,7 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
 
   const isBC        = draft.workType === "back-charge";
   const canNext     = draft.description.trim().length > 0;
-  const canConfirm  = !isBC || draft.photos.length >= 5;
+  const canConfirm  = !isBC || draft.photos.length >= 2;
 
   return (
     <BottomSheet
@@ -944,7 +1080,7 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
           <div className="space-y-4 py-2">
             {/* Description */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><AlignLeft size={12} />Description</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><AlignLeft size={12} />Description — Premium Framing Activity</label>
               <textarea value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} rows={4} placeholder="Describe the work performed…" autoFocus
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none" />
             </div>
@@ -977,13 +1113,26 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
               </div>
             </div>
 
+            {/* Back Charge: chargeable subcontractor */}
+            {isBC && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Building2 size={12} />Subcontractor Responsible</label>
+                <input
+                  value={draft.chargeableSub ?? ""}
+                  onChange={(e) => onChange({ ...draft, chargeableSub: e.target.value })}
+                  placeholder="Which subcontractor caused this charge?"
+                  className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
+                />
+              </div>
+            )}
+
             {/* Activity Photos */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Camera size={12} />Photos for this Activity</label>
               <PhotoSection
                 photos={draft.photos}
-                required={isBC ? 5 : undefined}
-                requireLabel={isBC ? "Back Charge requires at least 5 photos" : undefined}
+                required={isBC ? 2 : undefined}
+                requireLabel={isBC ? "Back Charge requires at least 2 photos" : undefined}
                 onAdd={(files) => onChange({ ...draft, photos: [...draft.photos, ...files] })}
                 onRemove={(i) => onChange({ ...draft, photos: draft.photos.filter((_, idx) => idx !== i) })}
               />
@@ -993,7 +1142,7 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
           <div className="space-y-3 py-2">
             {!canConfirm && (
               <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2">
-                <AlertTriangle size={12} />Back Charge requires at least 5 photos — go back and add them.
+                <AlertTriangle size={12} />Back Charge requires at least 2 photos — go back and add them.
               </div>
             )}
             {draft.workerNames.length > 0 && (
@@ -1032,5 +1181,96 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
   );
 }
 
-// ─── Subcontractor Sheet ──────────────────────────────────────────────────────
+// ─── Activity Confirm Modal ───────────────────────────────────────────────────
 
+function ActivityConfirmModal({ open, activityNumber, onAddAnother, onContinue }: {
+  open: boolean;
+  activityNumber: number;
+  onAddAnother: () => void;
+  onContinue: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-6">
+      <div className="absolute inset-0 bg-black/50" onClick={onContinue} />
+      <div className="relative bg-background rounded-2xl p-6 w-full max-w-sm shadow-xl flex flex-col items-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+          <Check size={28} className="text-emerald-500" />
+        </div>
+        <div className="text-center">
+          <p className="text-base font-semibold text-foreground">Activity {activityNumber} added</p>
+          <p className="text-sm text-muted-foreground mt-1">What would you like to do next?</p>
+        </div>
+        <div className="flex flex-col gap-2 w-full">
+          <button
+            onClick={onAddAnother}
+            className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            <Plus size={16} />Add Another Activity
+          </button>
+          <button
+            onClick={onContinue}
+            className="w-full border border-border text-foreground font-medium py-3 rounded-lg text-sm hover:bg-accent transition-colors"
+          >
+            Continue to Next Fields
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Submit Success Modal ─────────────────────────────────────────────────────
+
+function SubmitModal({ open, logId, closeEnabled, onClose }: {
+  open: boolean;
+  logId: string;
+  closeEnabled: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  function downloadPdf() {
+    window.open(`/api/daily-log/${logId}/pdf`, "_blank");
+  }
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-6">
+      <div className="absolute inset-0 bg-black/60" />
+      <div className="relative bg-background rounded-2xl p-6 w-full max-w-sm shadow-xl flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <Check size={20} className="text-emerald-500" />
+          </div>
+          <button
+            onClick={onClose}
+            disabled={!closeEnabled}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div>
+          <p className="text-base font-semibold text-foreground">Daily log registered!</p>
+          <p className="text-sm text-muted-foreground mt-1">Download the PDF and send it in <span className="font-semibold text-foreground">Buildertrend</span> before closing.</p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={downloadPdf}
+            className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            <Download size={16} />Download PDF
+          </button>
+        </div>
+
+        {!closeEnabled && (
+          <p className="text-xs text-muted-foreground text-center">
+            You can close this window in a moment…
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

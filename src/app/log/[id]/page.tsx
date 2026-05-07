@@ -181,7 +181,7 @@ export default function LogDetailPage() {
           <ChevronLeft size={20} />
         </button>
         <p className="text-sm font-semibold text-foreground flex-1">Daily Log</p>
-        {isOwner && (
+        {isOwner && log.date === (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })() && (
           <button
             onClick={() => router.push(`/log/${id}/edit`)}
             className="p-2 rounded-lg text-primary hover:bg-primary/10 transition-colors"

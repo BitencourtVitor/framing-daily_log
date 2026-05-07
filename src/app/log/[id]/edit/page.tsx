@@ -7,7 +7,7 @@ import {
   Pencil, Clock, Users, Hammer, Receipt, Zap, ShieldCheck, Search,
   CalendarDays, HardHat as HardHatIcon, AlignLeft, Tag, Wrench,
   Package, AlertTriangle, CalendarClock, MessageSquare, MapPin,
-  Loader2, Ban,
+  Loader2, Ban, Building2, Download,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -20,7 +20,13 @@ interface Activity {
   timeStart: string;
   timeEnd: string;
   workType: "normal" | "back-charge" | "extra" | "warranty";
+  chargeableSub?: string;
   photos: File[];
+}
+interface SubEntry {
+  company: string;
+  workerNames: string[];
+  description: string;
 }
 interface FormNotes {
   machineEntries: MachineEntry[];
@@ -34,6 +40,7 @@ interface FormState {
   locationId: string;
   locationPath: string[];
   activities: Activity[];
+  subcontractors: SubEntry[];
   notes: FormNotes;
   newGeneralPhotos: File[];
 }
@@ -57,7 +64,7 @@ const WORK_TYPE_CONFIG = {
 type WorkTypeKey = keyof typeof WORK_TYPE_CONFIG;
 
 const EMPTY_ACTIVITY: Activity = {
-  workerNames: [], description: "", timeStart: "07:00", timeEnd: "17:00", workType: "normal", photos: [],
+  workerNames: [], description: "", timeStart: "07:00", timeEnd: "17:00", workType: "normal", chargeableSub: "", photos: [],
 };
 const EMPTY_NOTES: FormNotes = {
   machineEntries: [], machinesNA: false, materials: "", materialsNA: false,
@@ -78,7 +85,7 @@ export default function EditLogPage() {
   const [logDate,   setLogDate]  = useState("");
 
   const [form, setForm] = useState<FormState>({
-    locationId: "", locationPath: [], activities: [], notes: { ...EMPTY_NOTES }, newGeneralPhotos: [],
+    locationId: "", locationPath: [], activities: [], subcontractors: [], notes: { ...EMPTY_NOTES }, newGeneralPhotos: [],
   });
 
   const [existingGeneralPhotos, setExistingGeneralPhotos] = useState<ExistingPhoto[]>([]);
@@ -89,23 +96,34 @@ export default function EditLogPage() {
   const [editActIdx,  setEditActIdx]  = useState<number | null>(null);
   const [draftAct,    setDraftAct]    = useState<Activity>({ ...EMPTY_ACTIVITY });
 
+  // Activity confirm modal
+  const [actConfirmModal, setActConfirmModal]               = useState(false);
+  const [confirmedActivityCount, setConfirmedActivityCount] = useState(0);
+
+  // Save modal
+  const [saveModal, setSaveModal]                       = useState(false);
+  const [saveModalCloseEnabled, setSaveModalCloseEnabled] = useState(false);
+
   const [locSheet,       setLocSheet]       = useState(false);
   const [locPath,        setLocPath]        = useState<QBTJobcode[]>([]);
   const [locCandidates,  setLocCandidates]  = useState<QBTJobcode[]>([]);
   const [locLoading,     setLocLoading]     = useState(false);
 
   useEffect(() => {
+    const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
     Promise.all([
       fetch(`/api/daily-log/${id}`).then((r) => (r.ok ? r.json() : Promise.reject())),
       fetch(`/api/daily-log/${id}/photos`).then((r) => (r.ok ? r.json() : [])),
       fetch("/api/qbt/workers").then((r) => r.json()).catch(() => []),
     ]).then(([log, photos, workers]) => {
+      if (log.date !== todayStr) { router.replace(`/log/${id}`); return; }
       setLogDate(log.date);
       setForm({
-        locationId:   log.locationId ?? "",
-        locationPath: log.locationPath ?? [],
-        activities:   (log.activities ?? []).map((a: Omit<Activity, "photos">) => ({ ...a, photos: [] })),
-        notes:        log.notes ?? { ...EMPTY_NOTES },
+        locationId:     log.locationId ?? "",
+        locationPath:   log.locationPath ?? [],
+        activities:     (log.activities ?? []).map((a: Omit<Activity, "photos">) => ({ ...a, chargeableSub: a.chargeableSub ?? "", photos: [] })),
+        subcontractors: (log.subcontractors ?? []).map((s: SubEntry) => ({ company: s.company, workerNames: s.workerNames ?? [], description: s.description ?? "" })),
+        notes:          log.notes ?? { ...EMPTY_NOTES },
         newGeneralPhotos: [],
       });
       const allPhotos: ExistingPhoto[] = Array.isArray(photos) ? photos : [];
@@ -127,6 +145,8 @@ export default function EditLogPage() {
   function openEditActivity(i: number) { setDraftAct({ ...form.activities[i] }); setEditActIdx(i); setActSheet(true); }
 
   function confirmActivity() {
+    const isEdit = editActIdx !== null;
+    const newCount = isEdit ? form.activities.length : form.activities.length + 1;
     setForm((f) => {
       const acts = [...f.activities];
       if (editActIdx !== null) acts[editActIdx] = draftAct;
@@ -134,6 +154,10 @@ export default function EditLogPage() {
       return { ...f, activities: acts };
     });
     setActSheet(false);
+    if (!isEdit) {
+      setConfirmedActivityCount(newCount);
+      setActConfirmModal(true);
+    }
   }
 
   function removeActivity(i: number) {
@@ -190,9 +214,9 @@ export default function EditLogPage() {
     if (!form.locationId) { setSaveError("Select a jobsite before saving."); return; }
     if (form.activities.length === 0) { setSaveError("Add at least one activity before saving."); return; }
     const bcIdx = form.activities.findIndex((act, i) =>
-      act.workType === "back-charge" && (existingActivityPhotoCounts[i] ?? 0) + act.photos.length < 5
+      act.workType === "back-charge" && (existingActivityPhotoCounts[i] ?? 0) + act.photos.length < 2
     );
-    if (bcIdx !== -1) { setSaveError(`Activity ${bcIdx + 1} (Back Charge) requires at least 5 photos.`); return; }
+    if (bcIdx !== -1) { setSaveError(`Activity ${bcIdx + 1} (Back Charge) requires at least 2 photos.`); return; }
     setSaving(true); setSaveError("");
     try {
       const workers = [...new Set(form.activities.flatMap((a) => a.workerNames))].map((name) => {
@@ -210,6 +234,10 @@ export default function EditLogPage() {
           activities: form.activities.map((a) => ({
             workerNames: a.workerNames, description: a.description,
             timeStart: a.timeStart, timeEnd: a.timeEnd, workType: a.workType,
+            chargeableSub: a.chargeableSub || undefined,
+          })),
+          subcontractors: form.subcontractors.map((s) => ({
+            company: s.company, workerNames: s.workerNames, description: s.description,
           })),
           notes: form.notes,
         }),
@@ -236,7 +264,9 @@ export default function EditLogPage() {
         await uploadFile(photo);
       }
 
-      router.push(`/log/${id}`);
+      setSaveModalCloseEnabled(false);
+      setSaveModal(true);
+      setTimeout(() => setSaveModalCloseEnabled(true), 3000);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Network error. Please try again.");
     } finally {
@@ -309,6 +339,14 @@ export default function EditLogPage() {
             </div>
           </PageSection>
 
+          {/* Subcontractors */}
+          <PageSection title="Subcontractors" icon={Building2}>
+            <SubcontractorSection
+              subcontractors={form.subcontractors}
+              onChange={(subs) => setForm((f) => ({ ...f, subcontractors: subs }))}
+            />
+          </PageSection>
+
           <hr className="border-border/40 -mx-4" />
 
           {/* Notes */}
@@ -332,6 +370,12 @@ export default function EditLogPage() {
           {/* General Photos */}
           <PageSection title="General Photos" icon={Camera}>
             <div className="space-y-3">
+              {(existingGeneralPhotos.length + form.newGeneralPhotos.length) < 5 && (
+                <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2">
+                  <AlertTriangle size={12} className="shrink-0" />
+                  At least 5 general photos are required ({existingGeneralPhotos.length + form.newGeneralPhotos.length}/5)
+                </div>
+              )}
               {/* Existing photos */}
               {existingGeneralPhotos.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
@@ -376,6 +420,22 @@ export default function EditLogPage() {
           </button>
         </div>
       </div>
+
+      {/* Activity confirm modal */}
+      <ActivityConfirmModal
+        open={actConfirmModal}
+        activityNumber={confirmedActivityCount}
+        onAddAnother={() => { setActConfirmModal(false); openAddActivity(); }}
+        onContinue={() => setActConfirmModal(false)}
+      />
+
+      {/* Save success modal */}
+      <SaveModal
+        open={saveModal}
+        logId={id}
+        closeEnabled={saveModalCloseEnabled}
+        onClose={() => { setSaveModal(false); router.push(`/log/${id}`); }}
+      />
 
       <LocationSheet
         open={locSheet} path={locPath} candidates={locCandidates} loading={locLoading}
@@ -527,7 +587,7 @@ function ActivityCard({ activity, index, existingPhotoCount, onEdit, onRemove }:
   const fmt = (t: string) => { const [h, m] = t.split(":").map(Number); return `${(h % 12) || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
   const cfg = WORK_TYPE_CONFIG[activity.workType];
   const totalPhotos = existingPhotoCount + activity.photos.length;
-  const needsPhotos = activity.workType === "back-charge" && totalPhotos < 5;
+  const needsPhotos = activity.workType === "back-charge" && totalPhotos < 2;
 
   return (
     <div className={`bg-card border rounded-xl px-4 py-3 space-y-2.5 border-l-[3px] ${cfg.border} ${needsPhotos ? "border-amber-400/60" : "border-border/40"}`}>
@@ -564,7 +624,7 @@ function ActivityCard({ activity, index, existingPhotoCount, onEdit, onRemove }:
       )}
       {needsPhotos && (
         <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-          <AlertTriangle size={10} />Back Charge requires at least 5 photos ({5 - totalPhotos} more needed)
+          <AlertTriangle size={10} />Back Charge requires at least 2 photos ({2 - totalPhotos} more needed)
         </p>
       )}
     </div>
@@ -758,7 +818,7 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
 
   const isBC       = draft.workType === "back-charge";
   const canNext    = draft.description.trim().length > 0;
-  const canConfirm = !isBC || (existingPhotoCount + draft.photos.length) >= 5;
+  const canConfirm = !isBC || (existingPhotoCount + draft.photos.length) >= 2;
 
   return (
     <BottomSheet open={open} onClose={onClose} title={displayed === 1 ? "Activity — What" : "Activity — Who"} step={displayed} totalSteps={2}
@@ -782,7 +842,7 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
         {displayed === 1 ? (
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><AlignLeft size={12} />Description</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><AlignLeft size={12} />Description — Premium Framing Activity</label>
               <textarea value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} rows={4} placeholder="Describe the work performed…" autoFocus
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none" />
             </div>
@@ -810,6 +870,17 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
                 })}
               </div>
             </div>
+            {isBC && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Building2 size={12} />Subcontractor Responsible</label>
+                <input
+                  value={draft.chargeableSub ?? ""}
+                  onChange={(e) => onChange({ ...draft, chargeableSub: e.target.value })}
+                  placeholder="Which subcontractor caused this charge?"
+                  className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Camera size={12} />Add Photos</label>
               <PhotoSection
@@ -823,7 +894,7 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
           <div className="space-y-3 py-2">
             {!canConfirm && (
               <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2">
-                <AlertTriangle size={12} />Back Charge requires at least 5 photos — go back and add them.
+                <AlertTriangle size={12} />Back Charge requires at least 2 photos — go back and add them.
               </div>
             )}
             {draft.workerNames.length > 0 && (
@@ -859,5 +930,178 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
         )}
       </div>
     </BottomSheet>
+  );
+}
+
+// ─── Subcontractor section ────────────────────────────────────────────────────
+
+function SubcontractorSection({ subcontractors, onChange }: {
+  subcontractors: SubEntry[];
+  onChange: (subs: SubEntry[]) => void;
+}) {
+  const [adding, setAdding]             = useState(false);
+  const [draftCompany, setDraftCompany] = useState("");
+  const [draftWorkers, setDraftWorkers] = useState("");
+  const [draftDesc, setDraftDesc]       = useState("");
+
+  function addSub() {
+    if (!draftCompany.trim()) return;
+    const workerNames = draftWorkers.split(",").map((w) => w.trim()).filter(Boolean);
+    onChange([...subcontractors, { company: draftCompany.trim(), workerNames, description: draftDesc.trim() }]);
+    setDraftCompany(""); setDraftWorkers(""); setDraftDesc(""); setAdding(false);
+  }
+
+  return (
+    <div className="space-y-2">
+      {subcontractors.map((s, i) => (
+        <div key={i} className="bg-card border border-border/40 rounded-xl px-4 py-3 space-y-1.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Building2 size={13} className="text-primary shrink-0 mt-0.5" />
+              <p className="text-sm font-semibold text-foreground">{s.company}</p>
+            </div>
+            <button onClick={() => onChange(subcontractors.filter((_, idx) => idx !== i))} className="p-1 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+              <X size={13} />
+            </button>
+          </div>
+          {s.workerNames.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-5">
+              <Users size={11} /><span>{s.workerNames.join(", ")}</span>
+            </div>
+          )}
+          {s.description && (
+            <p className="text-xs text-muted-foreground pl-5 line-clamp-2">{s.description}</p>
+          )}
+        </div>
+      ))}
+
+      {adding ? (
+        <div className="bg-background border border-primary/20 rounded-xl p-3 space-y-2">
+          <input
+            autoFocus
+            value={draftCompany}
+            onChange={(e) => setDraftCompany(e.target.value)}
+            placeholder="Company / Team name…"
+            className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
+          />
+          <input
+            value={draftWorkers}
+            onChange={(e) => setDraftWorkers(e.target.value)}
+            placeholder="People involved (comma-separated)…"
+            className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
+          />
+          <textarea
+            value={draftDesc}
+            onChange={(e) => setDraftDesc(e.target.value)}
+            rows={2}
+            placeholder="What was done…"
+            className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none"
+          />
+          <div className="flex gap-2">
+            <button onClick={() => { setAdding(false); setDraftCompany(""); setDraftWorkers(""); setDraftDesc(""); }} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">
+              Cancel
+            </button>
+            <button onClick={addSub} disabled={!draftCompany.trim()} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold disabled:opacity-40 transition-opacity">
+              Add
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} className="w-full border-2 border-dashed border-border rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+          <Plus size={15} />Add Subcontractor
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Activity Confirm Modal ───────────────────────────────────────────────────
+
+function ActivityConfirmModal({ open, activityNumber, onAddAnother, onContinue }: {
+  open: boolean;
+  activityNumber: number;
+  onAddAnother: () => void;
+  onContinue: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-6">
+      <div className="absolute inset-0 bg-black/50" onClick={onContinue} />
+      <div className="relative bg-background rounded-2xl p-6 w-full max-w-sm shadow-xl flex flex-col items-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+          <Check size={28} className="text-emerald-500" />
+        </div>
+        <div className="text-center">
+          <p className="text-base font-semibold text-foreground">Activity {activityNumber} added</p>
+          <p className="text-sm text-muted-foreground mt-1">What would you like to do next?</p>
+        </div>
+        <div className="flex flex-col gap-2 w-full">
+          <button
+            onClick={onAddAnother}
+            className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            <Plus size={16} />Add Another Activity
+          </button>
+          <button
+            onClick={onContinue}
+            className="w-full border border-border text-foreground font-medium py-3 rounded-lg text-sm hover:bg-accent transition-colors"
+          >
+            Continue to Next Fields
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Save Success Modal ───────────────────────────────────────────────────────
+
+function SaveModal({ open, logId, closeEnabled, onClose }: {
+  open: boolean;
+  logId: string;
+  closeEnabled: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  function downloadPdf() {
+    window.open(`/api/daily-log/${logId}/pdf`, "_blank");
+  }
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-6">
+      <div className="absolute inset-0 bg-black/60" />
+      <div className="relative bg-background rounded-2xl p-6 w-full max-w-sm shadow-xl flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <Check size={20} className="text-emerald-500" />
+          </div>
+          <button
+            onClick={onClose}
+            disabled={!closeEnabled}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div>
+          <p className="text-base font-semibold text-foreground">Daily log updated!</p>
+          <p className="text-sm text-muted-foreground mt-1">Download the PDF and send it in <span className="font-semibold text-foreground">Buildertrend</span> before closing.</p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={downloadPdf}
+            className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            <Download size={16} />Download PDF
+          </button>
+        </div>
+        {!closeEnabled && (
+          <p className="text-xs text-muted-foreground text-center">
+            You can close this window in a moment…
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
