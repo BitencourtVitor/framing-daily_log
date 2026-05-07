@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { date, workers, activities, subcontractors, notes } = body;
+  const { date, locationId, locationPath, workers, activities, subcontractors, notes } = body;
 
   if (!date) return NextResponse.json({ error: "Date required" }, { status: 400 });
 
@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
     supervisorId: session.userId,
     supervisorName: session.name,
     date,
+    locationId:   locationId ?? null,
+    locationPath: locationPath ?? [],
     workers: workers ?? [],
     activities: activities ?? [],
     subcontractors: subcontractors ?? [],

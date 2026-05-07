@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight, ShieldCheck, CalendarDays, User,
-  Camera, CheckCircle2, Clock, Layers, Loader2, RefreshCw,
+  Camera, Layers, Loader2, RefreshCw,
+  Download, MapPin,
 } from "lucide-react";
 
 interface LogEntry {
@@ -16,13 +17,9 @@ interface LogEntry {
   activityCount: number;
   workerCount: number;
   photoCount: number;
+  locationPath?: string[];
   createdAt: string;
 }
-
-const STATUS_META = {
-  draft:     { label: "Draft",     Icon: Clock,        cls: "text-muted-foreground" },
-  submitted: { label: "Submitted", Icon: CheckCircle2, cls: "text-emerald-500" },
-};
 
 function fmtDate(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -31,11 +28,12 @@ function fmtDate(iso: string) {
 
 export default function AdminLogsPage() {
   const router = useRouter();
-  const [logs, setLogs] = useState<LogEntry[] | null>(null);
+  const [logs, setLogs]         = useState<LogEntry[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting]   = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/me").then((r) => r.json()).then((d) => {
+    fetch("/api/me").then((r) => r.ok ? r.json() : {}).then((d) => {
       if (d.role !== "admin" && d.role !== "dev") router.replace("/dashboard");
     });
     load();
@@ -47,6 +45,24 @@ export default function AdminLogsPage() {
     setLogs(Array.isArray(data) ? data : []);
     setRefreshing(false);
   }
+
+  const exportPDF = useCallback(async (log: LogEntry, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExporting(log._id);
+    try {
+      const res = await fetch(`/api/daily-log/${log._id}/pdf`);
+      if (!res.ok) { alert("Failed to generate PDF"); return; }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `daily-log-${log.date}-${log.supervisorName.replace(/\s+/g, "-")}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(null);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -66,25 +82,33 @@ export default function AdminLogsPage() {
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 flex flex-col gap-3">
         {logs === null ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 size={14} className="animate-spin" /> Loading…
+            <Loader2 size={14} className="animate-spin" />Loading…
           </div>
         ) : logs.length === 0 ? (
           <p className="text-sm text-muted-foreground">No logs yet.</p>
         ) : (
           logs.map((log) => {
-            const meta = STATUS_META[log.status] ?? STATUS_META.draft;
+            const isExporting = exporting === log._id;
             return (
-              <div key={log._id} className="bg-card border border-border/40 rounded-xl px-4 py-3 space-y-2">
-                {/* Row 1: date + status */}
+              <div
+                key={log._id}
+                onClick={() => router.push(`/log/${log._id}`)}
+                className="bg-card border border-border/40 rounded-xl px-4 py-3 space-y-2 hover:border-primary/30 hover:bg-accent/20 transition-colors cursor-pointer"
+              >
+                {/* Row 1: date + PDF */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <CalendarDays size={14} className="text-muted-foreground shrink-0" />
                     <p className="text-sm font-semibold text-foreground truncate">{fmtDate(log.date)}</p>
                   </div>
-                  <div className={`flex items-center gap-1 text-xs font-medium ${meta.cls}`}>
-                    <meta.Icon size={12} />
-                    {meta.label}
-                  </div>
+                  <button
+                    onClick={(e) => exportPDF(log, e)}
+                    disabled={isExporting}
+                    className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 shrink-0"
+                    title="Export PDF"
+                  >
+                    {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  </button>
                 </div>
 
                 {/* Row 2: supervisor */}
@@ -93,13 +117,21 @@ export default function AdminLogsPage() {
                   <span>{log.supervisorName}</span>
                 </div>
 
-                {/* Row 3: stats */}
+                {/* Row 3: location */}
+                {log.locationPath && log.locationPath.length > 0 && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MapPin size={12} className="shrink-0 text-primary" />
+                    <span className="truncate">{log.locationPath.join(" › ")}</span>
+                  </div>
+                )}
+
+                {/* Row 4: stats */}
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                   {log.activityCount > 0 && (
-                    <span className="flex items-center gap-1"><Layers size={11} /> {log.activityCount} {log.activityCount === 1 ? "activity" : "activities"}</span>
+                    <span className="flex items-center gap-1"><Layers size={11} />{log.activityCount} {log.activityCount === 1 ? "activity" : "activities"}</span>
                   )}
                   {log.photoCount > 0 && (
-                    <span className="flex items-center gap-1"><Camera size={11} /> {log.photoCount} photo{log.photoCount !== 1 ? "s" : ""}</span>
+                    <span className="flex items-center gap-1"><Camera size={11} />{log.photoCount} photo{log.photoCount !== 1 ? "s" : ""}</span>
                   )}
                 </div>
               </div>

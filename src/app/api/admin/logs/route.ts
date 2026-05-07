@@ -20,7 +20,7 @@ export async function GET() {
   const logs = await DailyLog.find()
     .sort({ date: -1 })
     .limit(100)
-    .select("supervisorId supervisorName date status activities workers createdAt")
+    .select("supervisorId supervisorName date status activities workers locationPath createdAt")
     .lean();
 
   const logIds = logs.map((l) => l._id as mongoose.Types.ObjectId);

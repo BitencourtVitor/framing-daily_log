@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   LogOut, Sun, Moon, ClipboardList, CheckCircle2, Clock,
-  CalendarDays, Users, Layers, AlertCircle, RefreshCw, History, ShieldCheck, Loader2,
+  CalendarDays, Layers, RefreshCw, History, ShieldCheck, Loader2,
+  Download,
 } from "lucide-react";
 
 interface LogSummary {
   _id: string;
   date: string;
-  status: "draft" | "syncing" | "synced" | "failed";
+  status: string;
   workers: { name: string }[];
   activities: unknown[];
 }
@@ -34,29 +35,22 @@ function fmtDate(iso: string) {
   return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-const STATUS_META = {
-  draft:    { label: "Pending sync", Icon: Clock,       cls: "text-muted-foreground" },
-  syncing:  { label: "Syncing…",     Icon: RefreshCw,   cls: "text-amber-500" },
-  synced:   { label: "Synced",       Icon: CheckCircle2, cls: "text-emerald-500" },
-  failed:   { label: "Sync failed",  Icon: AlertCircle, cls: "text-destructive" },
-};
-
 export default function DashboardPage() {
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("");
-  const [logs, setLogs] = useState<LogSummary[] | null>(null);
+  const [name, setName]         = useState("");
+  const [role, setRole]         = useState("");
+  const [logs, setLogs]         = useState<LogSummary[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting]   = useState<string | null>(null);
   const today = localToday();
 
   useEffect(() => {
-    fetch("/api/me").then((r) => r.json()).then((d) => { setName(d.name ?? ""); setRole(d.role ?? ""); });
+    fetch("/api/me").then((r) => r.ok ? r.json() : {}).then((d) => { setName(d.name ?? ""); setRole(d.role ?? ""); });
     fetch("/api/daily-log").then((r) => r.ok ? r.json() : []).then(setLogs);
   }, []);
 
   const todayLog = logs?.find((l) => l.date === today) ?? (logs === null ? undefined : null);
-  const history = logs ?? [];
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -64,8 +58,26 @@ export default function DashboardPage() {
     router.push("/login");
   }
 
+  const exportPDF = useCallback(async (log: LogSummary, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExporting(log._id);
+    try {
+      const res = await fetch(`/api/daily-log/${log._id}/pdf`);
+      if (!res.ok) { alert("Failed to generate PDF"); return; }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `daily-log-${log.date}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(null);
+    }
+  }, []);
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-dvh flex flex-col overflow-hidden">
       {/* Header */}
       <header className="sticky top-0 z-10 h-14 bg-card/80 backdrop-blur-sm border-b border-border flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2.5">
@@ -106,15 +118,15 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-8 flex flex-col gap-6">
+      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 flex flex-col gap-5 min-h-0">
         {/* Welcome */}
-        <div>
+        <div className="shrink-0">
           <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">{greeting()}</p>
-          <h1 className="text-2xl font-semibold text-foreground mt-0.5">{name || " "}</h1>
+          <h1 className="text-2xl font-semibold text-foreground mt-0.5">{name || " "}</h1>
         </div>
 
         {/* Today */}
-        <div className="bg-card border border-border/40 rounded-xl p-5 space-y-4">
+        <div className="bg-card border border-border/40 rounded-xl p-5 space-y-4 shrink-0">
           <div className="flex items-center gap-1.5">
             <CalendarDays size={13} className="text-muted-foreground" />
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Today</p>
@@ -123,11 +135,14 @@ export default function DashboardPage() {
           {todayLog === undefined ? (
             <p className="text-sm text-muted-foreground">Checking…</p>
           ) : todayLog !== null ? (
-            <div className="flex items-center gap-3">
-              <CheckCircle2 size={20} className="text-primary shrink-0" />
-              <div>
+            <div
+              className="flex items-center gap-3 cursor-pointer"
+              onClick={() => router.push(`/log/${todayLog._id}`)}
+            >
+              <CheckCircle2 size={20} className="text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground">Daily log submitted</p>
-                <p className="text-xs text-muted-foreground capitalize">{STATUS_META[todayLog.status].label}</p>
+                <p className="text-xs text-muted-foreground">Tap to view details</p>
               </div>
             </div>
           ) : (
@@ -147,56 +162,63 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* History */}
-        <div className="bg-card border border-border/40 rounded-xl p-5 space-y-3">
-          <div className="flex items-center gap-1.5">
-            <History size={13} className="text-muted-foreground" />
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Previous Logs</p>
+        {/* My Logs */}
+        <div className="bg-card border border-border/40 rounded-xl p-5 flex flex-col gap-3 flex-1 min-h-0">
+          <div className="flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-1.5">
+              <History size={13} className="text-muted-foreground" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">My Logs</p>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Tap to view details</p>
           </div>
 
           {logs === null ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 size={14} className="animate-spin" /> Loading…
             </div>
-          ) : history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No previous logs.</p>
+          ) : logs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No logs yet.</p>
           ) : (
-            <div className="overflow-y-auto max-h-72 space-y-2 pr-0.5">
-              {history.map((log) => {
-                const meta = STATUS_META[log.status];
-                return (
-                  <div key={log._id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border/40 bg-background">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <CalendarDays size={14} className="text-muted-foreground shrink-0" />
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {log.date === today ? "Today" : fmtDate(log.date)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      {log.activities.length > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Layers size={12} />
-                          {log.activities.length}
-                        </div>
-                      )}
-                      {log.workers.length > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Users size={12} />
-                          {log.workers.length}
-                        </div>
-                      )}
-                    </div>
+            <div className="overflow-y-auto flex-1 space-y-2 pr-0.5">
+              {logs.map((log) => (
+                <div
+                  key={log._id}
+                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-primary/30 [background-color:var(--primary-tint)] hover:[background-color:var(--primary-tint-hover)] transition-colors cursor-pointer"
+                  onClick={() => router.push(`/log/${log._id}`)}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <CalendarDays size={14} className="text-muted-foreground shrink-0" />
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {log.date === today ? "Today" : fmtDate(log.date)}
+                    </p>
                   </div>
-                );
-              })}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {log.activities.length > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Layers size={12} />
+                        {log.activities.length}
+                      </div>
+                    )}
+                    <button
+                      onClick={(e) => exportPDF(log, e)}
+                      disabled={exporting === log._id}
+                      className="p-1 rounded text-primary transition-colors disabled:opacity-40"
+                      title="Export PDF"
+                    >
+                      {exporting === log._id ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
+
         {/* Admin View */}
         {(role === "admin" || role === "dev") && (
           <button
             onClick={() => router.push("/admin")}
-            className="w-full flex items-center justify-center gap-2 border border-border/40 rounded-xl py-3 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+            className="w-full flex items-center justify-center gap-2 border border-primary/30 [background-color:var(--primary-tint)] rounded-xl py-3 text-xs font-semibold text-primary hover:[background-color:var(--primary-tint-hover)] transition-colors shrink-0"
           >
             <ShieldCheck size={14} />
             Admin View

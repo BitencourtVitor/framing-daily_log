@@ -22,6 +22,36 @@ function qbtHeaders(company: CompanyId) {
   };
 }
 
+export interface QBTJobcode {
+  id: number;
+  parent_id: number;
+  name: string;
+  type: string;
+  active: boolean;
+  has_children: boolean;
+}
+
+export async function getJobcodes(parentId: number, company: CompanyId): Promise<QBTJobcode[]> {
+  const params = new URLSearchParams({
+    parent_ids: String(parentId),
+    active: "yes",
+    type: "regular",
+  });
+
+  const res = await fetch(`${QBT_BASE_URL}/jobcodes?${params}`, {
+    headers: qbtHeaders(company),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`QBT getJobcodes failed: ${res.status} ${text}`);
+  }
+
+  const json = await res.json();
+  const items = json.results?.jobcodes ?? {};
+  return Object.values(items) as QBTJobcode[];
+}
+
 export interface QBTTimesheet {
   id: number;
   user_id: number;

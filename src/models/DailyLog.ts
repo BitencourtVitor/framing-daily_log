@@ -22,18 +22,30 @@ export interface ISubcontractorEntry {
   description: string;
 }
 
+export interface IMachineEntry {
+  title: string;
+  unit: string;
+}
+
 export interface INotes {
-  machines: string;
+  machineEntries: IMachineEntry[];
+  machinesNA: boolean;
   materials: string;
+  materialsNA: boolean;
   problems: string;
+  problemsNA: boolean;
   nextDayPlan: string;
+  nextDayPlanNA: boolean;
   supervisorNotes: string;
+  supervisorNotesNA: boolean;
 }
 
 export interface IDailyLog extends Document {
-  supervisorId: string; // User ObjectId
+  supervisorId: string;
   supervisorName: string;
   date: string;
+  locationId?: string; // QBT jobcode ID (stringified number)
+  locationPath?: string[]; // snapshot: ["Customer", "Client", "Jobsite", "Lot"]
   workers: IWorker[];
   activities: IActivity[];
   subcontractors: ISubcontractorEntry[];
@@ -48,6 +60,8 @@ const DailyLogSchema = new Schema<IDailyLog>(
     supervisorId: { type: String, ref: "User", required: true },
     supervisorName: { type: String, required: true },
     date: { type: String, required: true },
+    locationId: { type: String, default: null },
+    locationPath: [{ type: String }],
     workers: [
       {
         _id: false,
@@ -78,11 +92,22 @@ const DailyLogSchema = new Schema<IDailyLog>(
       },
     ],
     notes: {
-      machines: { type: String, default: "" },
+      machineEntries: [
+        {
+          _id: false,
+          title: { type: String, default: "" },
+          unit: { type: String, default: "" },
+        },
+      ],
+      machinesNA: { type: Boolean, default: false },
       materials: { type: String, default: "" },
+      materialsNA: { type: Boolean, default: false },
       problems: { type: String, default: "" },
+      problemsNA: { type: Boolean, default: false },
       nextDayPlan: { type: String, default: "" },
+      nextDayPlanNA: { type: Boolean, default: false },
       supervisorNotes: { type: String, default: "" },
+      supervisorNotesNA: { type: Boolean, default: false },
     },
     status: {
       type: String,
@@ -95,6 +120,6 @@ const DailyLogSchema = new Schema<IDailyLog>(
 
 DailyLogSchema.index({ supervisorId: 1, date: 1 }, { unique: true });
 
-export const DailyLog =
-  mongoose.models.DailyLog ||
-  mongoose.model<IDailyLog>("DailyLog", DailyLogSchema);
+// Force-reregister so schema changes take effect without a full server restart.
+delete (mongoose.models as Record<string, unknown>).DailyLog;
+export const DailyLog = mongoose.model<IDailyLog>("DailyLog", DailyLogSchema);

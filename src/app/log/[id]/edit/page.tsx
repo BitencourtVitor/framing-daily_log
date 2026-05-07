@@ -1,43 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  X,
-  Camera,
-  ImageIcon,
-  Check,
-  Pencil,
-  Clock,
-  Users,
-  Hammer,
-  Receipt,
-  Zap,
-  ShieldCheck,
-  Search,
-  CalendarDays,
-  HardHat as HardHatIcon,
-  AlignLeft,
-  Tag,
-  Wrench,
-  Package,
-  AlertTriangle,
-  CalendarClock,
-  MessageSquare,
-  MapPin,
-  Loader2,
-  Ban,
+  ChevronLeft, ChevronRight, Plus, X, Camera, ImageIcon, Check,
+  Pencil, Clock, Users, Hammer, Receipt, Zap, ShieldCheck, Search,
+  CalendarDays, HardHat as HardHatIcon, AlignLeft, Tag, Wrench,
+  Package, AlertTriangle, CalendarClock, MessageSquare, MapPin,
+  Loader2, Ban,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Worker { id: number; name: string }
-
 interface MachineEntry { title: string; unit: string }
-
 interface Activity {
   workerNames: string[];
   description: string;
@@ -46,109 +22,108 @@ interface Activity {
   workType: "normal" | "back-charge" | "extra" | "warranty";
   photos: File[];
 }
-
-interface SubEntry {
-  company: string;
-  workerNames: string[];
-  description: string;
-}
-
 interface FormNotes {
   machineEntries: MachineEntry[];
   machinesNA: boolean;
-  materials: string;
-  materialsNA: boolean;
-  problems: string;
-  problemsNA: boolean;
-  nextDayPlan: string;
-  nextDayPlanNA: boolean;
-  supervisorNotes: string;
-  supervisorNotesNA: boolean;
+  materials: string;  materialsNA: boolean;
+  problems: string;   problemsNA: boolean;
+  nextDayPlan: string; nextDayPlanNA: boolean;
+  supervisorNotes: string; supervisorNotesNA: boolean;
 }
-
 interface FormState {
-  date: string;
   locationId: string;
   locationPath: string[];
   activities: Activity[];
-  subcontractors: SubEntry[];
   notes: FormNotes;
-  photos: File[];
+  newGeneralPhotos: File[];
 }
-
+interface ExistingPhoto {
+  _id: string;
+  activityIndex: number | null;
+  filename: string;
+  storageKey: string;
+  mimetype: string;
+}
 interface QBTJobcode { id: number; name: string; has_children: boolean; parent_id: number }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WORK_TYPE_CONFIG = {
-  normal:       { label: "Normal Labor", Icon: Hammer,      text: "text-blue-500",   bg: "bg-blue-500/10",   border: "border-blue-500/30" },
-  "back-charge":{ label: "Back Charge",  Icon: Receipt,     text: "text-amber-500",  bg: "bg-amber-500/10",  border: "border-amber-500/30" },
-  extra:        { label: "Extra",        Icon: Zap,         text: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/30" },
-  warranty:     { label: "Warranty",     Icon: ShieldCheck, text: "text-emerald-500",bg: "bg-emerald-500/10",border: "border-emerald-500/30" },
+  normal:        { label: "Normal Labor", Icon: Hammer,      text: "text-blue-500",    bg: "bg-blue-500/10",    border: "border-blue-500/30" },
+  "back-charge": { label: "Back Charge",  Icon: Receipt,     text: "text-amber-500",   bg: "bg-amber-500/10",   border: "border-amber-500/30" },
+  extra:         { label: "Extra",        Icon: Zap,         text: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/30" },
+  warranty:      { label: "Warranty",     Icon: ShieldCheck, text: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
 } as const;
 type WorkTypeKey = keyof typeof WORK_TYPE_CONFIG;
 
-
-function localDateStr(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-const TODAY = localDateStr();
-
 const EMPTY_ACTIVITY: Activity = {
-  workerNames: [], description: "", timeStart: "07:00", timeEnd: "17:00",
-  workType: "normal", photos: [],
+  workerNames: [], description: "", timeStart: "07:00", timeEnd: "17:00", workType: "normal", photos: [],
 };
 const EMPTY_NOTES: FormNotes = {
-  machineEntries: [], machinesNA: false,
-  materials: "",  materialsNA: false,
-  problems: "",   problemsNA: false,
-  nextDayPlan: "", nextDayPlanNA: false,
+  machineEntries: [], machinesNA: false, materials: "", materialsNA: false,
+  problems: "", problemsNA: false, nextDayPlan: "", nextDayPlanNA: false,
   supervisorNotes: "", supervisorNotesNA: false,
 };
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function NewLogPage() {
+export default function EditLogPage() {
   const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const params = useParams();
+  const id = params.id as string;
+
+  const [loading,   setLoading]  = useState(true);
+  const [saving,    setSaving]   = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [logDate,   setLogDate]  = useState("");
 
   const [form, setForm] = useState<FormState>({
-    date: TODAY,
-    locationId: "",
-    locationPath: [],
-    activities: [],
-    subcontractors: [],
-    notes: { ...EMPTY_NOTES },
-    photos: [],
+    locationId: "", locationPath: [], activities: [], notes: { ...EMPTY_NOTES }, newGeneralPhotos: [],
   });
 
-  const [submittedDates, setSubmittedDates]   = useState<string[]>([]);
-  const [allWorkers, setAllWorkers]           = useState<Worker[]>([]);
+  const [existingGeneralPhotos, setExistingGeneralPhotos] = useState<ExistingPhoto[]>([]);
+  const [existingActivityPhotoCounts, setExistingActivityPhotoCounts] = useState<Record<number, number>>({});
+  const [allWorkers, setAllWorkers] = useState<Worker[]>([]);
 
-  // Activity sheet
-  const [actSheet, setActSheet]       = useState(false);
-  const [editActIdx, setEditActIdx]   = useState<number | null>(null);
-  const [draftAct, setDraftAct]       = useState<Activity>({ ...EMPTY_ACTIVITY });
+  const [actSheet,    setActSheet]    = useState(false);
+  const [editActIdx,  setEditActIdx]  = useState<number | null>(null);
+  const [draftAct,    setDraftAct]    = useState<Activity>({ ...EMPTY_ACTIVITY });
 
-  // Location sheet
-  const [locSheet, setLocSheet]           = useState(false);
-  const [locPath, setLocPath]             = useState<QBTJobcode[]>([]);
-  const [locCandidates, setLocCandidates] = useState<QBTJobcode[]>([]);
-  const [locLoading, setLocLoading]       = useState(false);
+  const [locSheet,       setLocSheet]       = useState(false);
+  const [locPath,        setLocPath]        = useState<QBTJobcode[]>([]);
+  const [locCandidates,  setLocCandidates]  = useState<QBTJobcode[]>([]);
+  const [locLoading,     setLocLoading]     = useState(false);
 
   useEffect(() => {
-    const from = new Date();
-    from.setDate(from.getDate() - 90);
-    fetch(`/api/logs/status?from=${localDateStr(from)}&to=${TODAY}`)
-      .then((r) => r.json())
-      .then((logs: { date: string }[]) => setSubmittedDates(logs.map((l) => l.date)));
-    fetch("/api/qbt/workers").then((r) => r.json()).then(setAllWorkers);
-  }, []);
+    Promise.all([
+      fetch(`/api/daily-log/${id}`).then((r) => (r.ok ? r.json() : Promise.reject())),
+      fetch(`/api/daily-log/${id}/photos`).then((r) => (r.ok ? r.json() : [])),
+      fetch("/api/qbt/workers").then((r) => r.json()).catch(() => []),
+    ]).then(([log, photos, workers]) => {
+      setLogDate(log.date);
+      setForm({
+        locationId:   log.locationId ?? "",
+        locationPath: log.locationPath ?? [],
+        activities:   (log.activities ?? []).map((a: Omit<Activity, "photos">) => ({ ...a, photos: [] })),
+        notes:        log.notes ?? { ...EMPTY_NOTES },
+        newGeneralPhotos: [],
+      });
+      const allPhotos: ExistingPhoto[] = Array.isArray(photos) ? photos : [];
+      setExistingGeneralPhotos(allPhotos.filter((p) => p.activityIndex === null || p.activityIndex === undefined));
+      const counts: Record<number, number> = {};
+      allPhotos.forEach((p) => {
+        if (p.activityIndex !== null && p.activityIndex !== undefined) {
+          counts[p.activityIndex] = (counts[p.activityIndex] ?? 0) + 1;
+        }
+      });
+      setExistingActivityPhotoCounts(counts);
+      setAllWorkers(Array.isArray(workers) ? workers : []);
+    }).catch(() => router.back()).finally(() => setLoading(false));
+  }, [id, router]);
 
   // ── Activity handlers ───────────────────────────────────────────────────────
 
-  function openAddActivity() { setDraftAct({ ...EMPTY_ACTIVITY }); setEditActIdx(null); setActSheet(true); }
+  function openAddActivity()  { setDraftAct({ ...EMPTY_ACTIVITY }); setEditActIdx(null); setActSheet(true); }
   function openEditActivity(i: number) { setDraftAct({ ...form.activities[i] }); setEditActIdx(i); setActSheet(true); }
 
   function confirmActivity() {
@@ -173,9 +148,7 @@ export default function NewLogPage() {
   }
 
   async function openLocSheet() {
-    setLocSheet(true);
-    setLocPath([]);
-    setLocLoading(true);
+    setLocSheet(true); setLocPath([]); setLocLoading(true);
     setLocCandidates(await fetchJobcodes(0));
     setLocLoading(false);
   }
@@ -184,90 +157,66 @@ export default function NewLogPage() {
     const newPath = [...locPath, node];
     if (!node.has_children) {
       setForm((f) => ({ ...f, locationId: String(node.id), locationPath: newPath.map((n) => n.name) }));
-      setLocSheet(false);
-      return;
+      setLocSheet(false); return;
     }
     setLocLoading(true);
     const children = await fetchJobcodes(node.id);
-    // If every child is a leaf (no further children), they're work-type labels — select the parent
     const allLeaves = children.length > 0 && children.every((c) => !c.has_children);
     if (allLeaves) {
       setForm((f) => ({ ...f, locationId: String(node.id), locationPath: newPath.map((n) => n.name) }));
-      setLocSheet(false);
-      setLocLoading(false);
-      return;
+      setLocSheet(false); setLocLoading(false); return;
     }
-    setLocPath(newPath);
-    setLocCandidates(children);
-    setLocLoading(false);
+    setLocPath(newPath); setLocCandidates(children); setLocLoading(false);
   }
 
   async function goBackLoc(toIndex: number) {
     const newPath = locPath.slice(0, toIndex);
-    setLocPath(newPath);
-    setLocLoading(true);
+    setLocPath(newPath); setLocLoading(true);
     const last = newPath[newPath.length - 1];
     setLocCandidates(await fetchJobcodes(last ? last.id : 0));
     setLocLoading(false);
   }
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
+  // ── Existing photo delete ───────────────────────────────────────────────────
 
-  function validate(): string | null {
-    if (!form.date) return "Select a date before submitting.";
-    if (dateBlocked) return "A log already exists for this date.";
-    if (!form.locationId) return "Select a jobsite before submitting.";
-    if (form.activities.length === 0) return "Add at least one activity before submitting.";
-    const bcIdx = form.activities.findIndex((a) => a.workType === "back-charge" && a.photos.length < 5);
-    if (bcIdx !== -1) return `Activity ${bcIdx + 1} (Back Charge) requires at least 5 photos.`;
-    return null;
+  async function deleteExistingPhoto(photo: ExistingPhoto) {
+    await fetch(`/api/daily-log/${id}/photos?photoId=${photo._id}`, { method: "DELETE" });
+    setExistingGeneralPhotos((prev) => prev.filter((p) => p._id !== photo._id));
   }
 
-  async function handleSubmit() {
-    const err = validate();
-    if (err) { setSubmitError(err); return; }
-    setSubmitting(true);
-    setSubmitError("");
+  // ── Submit ──────────────────────────────────────────────────────────────────
+
+  async function handleSave() {
+    if (!form.locationId) { setSaveError("Select a jobsite before saving."); return; }
+    if (form.activities.length === 0) { setSaveError("Add at least one activity before saving."); return; }
+    const bcIdx = form.activities.findIndex((act, i) =>
+      act.workType === "back-charge" && (existingActivityPhotoCounts[i] ?? 0) + act.photos.length < 5
+    );
+    if (bcIdx !== -1) { setSaveError(`Activity ${bcIdx + 1} (Back Charge) requires at least 5 photos.`); return; }
+    setSaving(true); setSaveError("");
     try {
-      const res = await fetch("/api/daily-log", {
-        method: "POST",
+      const workers = [...new Set(form.activities.flatMap((a) => a.workerNames))].map((name) => {
+        const w = allWorkers.find((w) => w.name === name);
+        return { qbtUserId: w?.id ?? 0, name };
+      });
+
+      const res = await fetch(`/api/daily-log/${id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: form.date,
-          locationId: form.locationId || undefined,
+          locationId:   form.locationId || null,
           locationPath: form.locationPath,
-          workers: [...new Set(form.activities.flatMap((a) => a.workerNames))].map((name) => {
-            const w = allWorkers.find((w) => w.name === name);
-            return { qbtUserId: w?.id ?? 0, name };
-          }),
+          workers,
           activities: form.activities.map((a) => ({
-            workerNames: a.workerNames,
-            description: a.description,
-            timeStart: a.timeStart,
-            timeEnd: a.timeEnd,
-            workType: a.workType,
+            workerNames: a.workerNames, description: a.description,
+            timeStart: a.timeStart, timeEnd: a.timeEnd, workType: a.workType,
           })),
-          subcontractors: [],
-          notes: {
-            machineEntries: form.notes.machineEntries,
-            machinesNA: form.notes.machinesNA,
-            materials: form.notes.materials,
-            materialsNA: form.notes.materialsNA,
-            problems: form.notes.problems,
-            problemsNA: form.notes.problemsNA,
-            nextDayPlan: form.notes.nextDayPlan,
-            nextDayPlanNA: form.notes.nextDayPlanNA,
-            supervisorNotes: form.notes.supervisorNotes,
-            supervisorNotesNA: form.notes.supervisorNotesNA,
-          },
+          notes: form.notes,
         }),
       });
 
-      if (!res.ok) { let msg = "Submit failed"; try { const j = await res.json(); msg = j.error ?? msg; } catch {} setSubmitError(msg); return; }
+      if (!res.ok) { let msg = "Save failed"; try { const j = await res.json(); msg = j.error ?? msg; } catch {} setSaveError(msg); return; }
 
-      const { id } = await res.json();
-
-      // Upload photos one by one — read each file's buffer before sending to avoid stale File references
       async function uploadFile(file: File, extra?: Record<string, string>) {
         const buffer = await file.arrayBuffer();
         const blob   = new Blob([buffer], { type: file.type });
@@ -283,44 +232,46 @@ export default function NewLogPage() {
           await uploadFile(photo, { activityIndex: String(i) });
         }
       }
-
-      for (const photo of form.photos) {
+      for (const photo of form.newGeneralPhotos) {
         await uploadFile(photo);
       }
 
-      router.push("/dashboard");
+      router.push(`/log/${id}`);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Network error. Please try again.");
+      setSaveError(err instanceof Error ? err.message : "Network error. Please try again.");
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   }
 
-  const dateBlocked = submittedDates.includes(form.date);
-  const canSubmit   = !!form.date && !dateBlocked && !submitting;
-
   // ── Render ──────────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 size={20} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <>
       <div className="min-h-screen flex flex-col bg-background">
         <header className="sticky top-0 z-10 h-14 bg-card/80 backdrop-blur-sm border-b border-border flex items-center px-4 gap-3 shrink-0">
-          <button onClick={() => router.push("/dashboard")} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+          <button onClick={() => router.back()} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
             <ChevronLeft size={20} />
           </button>
-          <p className="text-sm font-semibold text-foreground flex-1">New Daily Log</p>
+          <p className="text-sm font-semibold text-foreground flex-1">Edit Daily Log</p>
         </header>
 
         <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 pb-28 space-y-6">
 
-          {/* Date */}
+          {/* Date (locked) */}
           <PageSection title="Date" icon={CalendarDays}>
-            <DateInput value={form.date} max={TODAY} onChange={(v) => setForm((f) => ({ ...f, date: v }))} />
-            {dateBlocked && (
-              <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-                A log already exists for this date.
-              </p>
-            )}
+            <div className="flex items-center gap-2 bg-muted/40 border border-border/40 rounded-lg px-3 py-3">
+              <CalendarDays size={16} className="text-muted-foreground shrink-0" />
+              <span className="text-sm text-muted-foreground">{fmtDate(logDate)}</span>
+            </div>
           </PageSection>
 
           {/* Location */}
@@ -337,21 +288,22 @@ export default function NewLogPage() {
                 </button>
               </div>
             ) : (
-              <button
-                onClick={openLocSheet}
-                className="w-full border-2 border-dashed border-border rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-              >
-                <MapPin size={15} />
-                Select Jobsite
+              <button onClick={openLocSheet} className="w-full border-2 border-dashed border-border rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                <MapPin size={15} />Select Jobsite
               </button>
             )}
           </PageSection>
 
-          {/* Premium Framing Activities */}
+          {/* Activities */}
           <PageSection title="Premium Framing" icon={HardHatIcon}>
             <div className="space-y-2">
               {form.activities.map((act, i) => (
-                <ActivityCard key={i} activity={act} index={i} onEdit={() => openEditActivity(i)} onRemove={() => removeActivity(i)} />
+                <ActivityCard
+                  key={i} activity={act} index={i}
+                  existingPhotoCount={existingActivityPhotoCounts[i] ?? 0}
+                  onEdit={() => openEditActivity(i)}
+                  onRemove={() => removeActivity(i)}
+                />
               ))}
               <AddItemButton onClick={openAddActivity} label="Add Activity" />
             </div>
@@ -362,21 +314,15 @@ export default function NewLogPage() {
           {/* Notes */}
           <div className="space-y-4">
             <MachinesSection notes={form.notes} onChange={(n) => setForm((f) => ({ ...f, notes: n }))} />
-
-            {[
-              { key: "materials"      as const, naKey: "materialsNA"      as const, Icon: Package,        label: "Materials Delivered",   placeholder: "List materials delivered today…", rows: 2 },
-              { key: "problems"       as const, naKey: "problemsNA"       as const, Icon: AlertTriangle,  label: "Problems / Delays",     placeholder: "Any issues or delays?", rows: 2 },
-              { key: "nextDayPlan"    as const, naKey: "nextDayPlanNA"    as const, Icon: CalendarClock,  label: "Plan for Next Day",     placeholder: "What's the plan for tomorrow?", rows: 2 },
-              { key: "supervisorNotes"as const, naKey: "supervisorNotesNA"as const, Icon: MessageSquare,  label: "Notes for Supervisor",  placeholder: "Any observations for the supervisor…", rows: 2 },
-            ].map((f) => (
+            {([
+              { key: "materials"       as const, naKey: "materialsNA"       as const, Icon: Package,       label: "Materials Delivered",  placeholder: "List materials delivered today…", rows: 2 },
+              { key: "problems"        as const, naKey: "problemsNA"        as const, Icon: AlertTriangle, label: "Problems / Delays",    placeholder: "Any issues or delays?", rows: 2 },
+              { key: "nextDayPlan"     as const, naKey: "nextDayPlanNA"     as const, Icon: CalendarClock, label: "Plan for Next Day",    placeholder: "What's the plan for tomorrow?", rows: 2 },
+              { key: "supervisorNotes" as const, naKey: "supervisorNotesNA" as const, Icon: MessageSquare, label: "Notes for Supervisor", placeholder: "Any observations for the supervisor…", rows: 2 },
+            ] as const).map((f) => (
               <NoteFieldWithNA
-                key={f.key}
-                label={f.label}
-                placeholder={f.placeholder}
-                rows={f.rows}
-                Icon={f.Icon}
-                value={form.notes[f.key]}
-                isNA={form.notes[f.naKey]}
+                key={f.key} label={f.label} placeholder={f.placeholder} rows={f.rows} Icon={f.Icon}
+                value={form.notes[f.key]} isNA={form.notes[f.naKey]}
                 onValueChange={(v) => setForm((s) => ({ ...s, notes: { ...s.notes, [f.key]: v } }))}
                 onNAChange={(na) => setForm((s) => ({ ...s, notes: { ...s.notes, [f.naKey]: na, ...(na ? { [f.key]: "" } : {}) } }))}
               />
@@ -385,55 +331,72 @@ export default function NewLogPage() {
 
           {/* General Photos */}
           <PageSection title="General Photos" icon={Camera}>
-            <PhotoSection
-              photos={form.photos}
-              onAdd={(files) => setForm((f) => ({ ...f, photos: [...f.photos, ...files] }))}
-              onRemove={(i) => setForm((f) => ({ ...f, photos: f.photos.filter((_, idx) => idx !== i) }))}
-            />
+            <div className="space-y-3">
+              {/* Existing photos */}
+              {existingGeneralPhotos.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {existingGeneralPhotos.map((p) => (
+                    <div key={p._id} className="relative aspect-square">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`/api/photo?key=${encodeURIComponent(p.storageKey)}`} alt={p.filename} className="w-full h-full object-cover rounded-lg" />
+                      <button
+                        onClick={() => deleteExistingPhoto(p)}
+                        className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* New photos */}
+              <PhotoSection
+                photos={form.newGeneralPhotos}
+                onAdd={(files) => setForm((f) => ({ ...f, newGeneralPhotos: [...f.newGeneralPhotos, ...files] }))}
+                onRemove={(i) => setForm((f) => ({ ...f, newGeneralPhotos: f.newGeneralPhotos.filter((_, idx) => idx !== i) }))}
+              />
+            </div>
           </PageSection>
 
-          {submitError && (
+          {saveError && (
             <div className="flex items-start gap-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-xl px-4 py-3">
               <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-600 dark:text-red-400 font-medium">{submitError}</p>
+              <p className="text-sm text-red-600 dark:text-red-400 font-medium">{saveError}</p>
             </div>
           )}
         </main>
 
         <div className="fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-sm border-t border-border px-4 py-3">
           <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
+            onClick={handleSave}
+            disabled={saving}
             className="w-full max-w-lg mx-auto block bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
-            {submitting ? "Submitting…" : "Submit Daily Log"}
+            {saving ? "Saving…" : "Save Changes"}
           </button>
         </div>
       </div>
 
-      {/* Location sheet */}
       <LocationSheet
-        open={locSheet}
-        path={locPath}
-        candidates={locCandidates}
-        loading={locLoading}
-        onPick={(node) => pickLocNode(node)}
-        onBack={goBackLoc}
-        onClose={() => setLocSheet(false)}
+        open={locSheet} path={locPath} candidates={locCandidates} loading={locLoading}
+        onPick={pickLocNode} onBack={goBackLoc} onClose={() => setLocSheet(false)}
       />
 
-      {/* Activity sheet */}
       <ActivitySheet
-        open={actSheet}
-        workers={allWorkers}
-        draft={draftAct}
-        onChange={setDraftAct}
-        onClose={() => setActSheet(false)}
-        onConfirm={confirmActivity}
+        open={actSheet} workers={allWorkers} draft={draftAct}
+        existingPhotoCount={editActIdx !== null ? (existingActivityPhotoCounts[editActIdx] ?? 0) : 0}
+        onChange={setDraftAct} onClose={() => setActSheet(false)} onConfirm={confirmActivity}
       />
-
     </>
   );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtDate(iso: string) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 }
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -458,15 +421,9 @@ function AddItemButton({ onClick, label }: { onClick: () => void; label: string 
   );
 }
 
-// ─── Notes: N/A toggle field ──────────────────────────────────────────────────
-
-function NoteFieldWithNA({
-  label, placeholder, rows, Icon, value, isNA, onValueChange, onNAChange,
-}: {
+function NoteFieldWithNA({ label, placeholder, rows, Icon, value, isNA, onValueChange, onNAChange }: {
   label: string; placeholder: string; rows: number; Icon: React.ElementType;
-  value: string; isNA: boolean;
-  onValueChange: (v: string) => void;
-  onNAChange: (na: boolean) => void;
+  value: string; isNA: boolean; onValueChange: (v: string) => void; onNAChange: (na: boolean) => void;
 }) {
   return (
     <div className="space-y-1.5">
@@ -478,25 +435,17 @@ function NoteFieldWithNA({
           type="button"
           onClick={() => onNAChange(!isNA)}
           className={`flex items-center gap-1.5 text-[10px] font-semibold rounded-full px-2.5 py-1 border transition-colors shrink-0 ${
-            isNA
-              ? "bg-muted/60 text-muted-foreground border-border"
-              : "bg-background text-muted-foreground/60 border-border/40 hover:border-border"
+            isNA ? "bg-muted/60 text-muted-foreground border-border" : "bg-background text-muted-foreground/60 border-border/40 hover:border-border"
           }`}
         >
-          <Ban size={10} className={isNA ? "text-primary" : "text-muted-foreground/40"} />
-          N/A
+          <Ban size={10} className={isNA ? "text-primary" : "text-muted-foreground/40"} />N/A
         </button>
       </div>
       {isNA ? (
-        <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">
-          Not applicable
-        </div>
+        <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">Not applicable</div>
       ) : (
         <textarea
-          value={value}
-          onChange={(e) => onValueChange(e.target.value)}
-          rows={rows}
-          placeholder={placeholder}
+          value={value} onChange={(e) => onValueChange(e.target.value)} rows={rows} placeholder={placeholder}
           className="w-full bg-background border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none"
         />
       )}
@@ -504,10 +453,8 @@ function NoteFieldWithNA({
   );
 }
 
-// ─── Machines section ─────────────────────────────────────────────────────────
-
 function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: FormNotes) => void }) {
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding]       = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftUnit, setDraftUnit]   = useState("");
 
@@ -527,71 +474,44 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
           type="button"
           onClick={() => onChange({ ...notes, machinesNA: !notes.machinesNA, machineEntries: notes.machinesNA ? notes.machineEntries : [] })}
           className={`flex items-center gap-1.5 text-[10px] font-semibold rounded-full px-2.5 py-1 border transition-colors shrink-0 ${
-            notes.machinesNA
-              ? "bg-muted/60 text-muted-foreground border-border"
-              : "bg-background text-muted-foreground/60 border-border/40 hover:border-border"
+            notes.machinesNA ? "bg-muted/60 text-muted-foreground border-border" : "bg-background text-muted-foreground/60 border-border/40 hover:border-border"
           }`}
         >
-          <Ban size={10} className={notes.machinesNA ? "text-primary" : "text-muted-foreground/40"} />
-          N/A
+          <Ban size={10} className={notes.machinesNA ? "text-primary" : "text-muted-foreground/40"} />N/A
         </button>
       </div>
-
       {notes.machinesNA ? (
-        <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">
-          Not applicable
-        </div>
+        <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">Not applicable</div>
       ) : (
         <div className="space-y-2">
           {notes.machineEntries.map((m, i) => (
             <div key={i} className="flex items-center gap-2 bg-card border border-border/40 rounded-lg px-3 py-2.5">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{m.title}</p>
-                {m.unit && (
-                  <p className="text-xs text-primary font-mono mt-0.5">Unit: {m.unit}</p>
-                )}
+                {m.unit && <p className="text-xs text-primary font-mono mt-0.5">Unit: {m.unit}</p>}
               </div>
-              <button
-                onClick={() => onChange({ ...notes, machineEntries: notes.machineEntries.filter((_, idx) => idx !== i) })}
-                className="p-1 text-muted-foreground hover:text-destructive transition-colors shrink-0"
-              >
+              <button onClick={() => onChange({ ...notes, machineEntries: notes.machineEntries.filter((_, idx) => idx !== i) })} className="p-1 text-muted-foreground hover:text-destructive transition-colors shrink-0">
                 <X size={13} />
               </button>
             </div>
           ))}
-
           {adding ? (
             <div className="bg-background border border-primary/20 rounded-xl p-3 space-y-2">
-              <input
-                autoFocus
-                value={draftTitle}
-                onChange={(e) => setDraftTitle(e.target.value)}
-                placeholder="Machine / Equipment name…"
+              <input autoFocus value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} placeholder="Machine / Equipment name…"
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
-                onKeyDown={(e) => e.key === "Enter" && draftUnit !== undefined && document.getElementById("unitInput")?.focus()}
+                onKeyDown={(e) => e.key === "Enter" && document.getElementById("editUnitInput")?.focus()}
               />
-              <input
-                id="unitInput"
-                value={draftUnit}
-                onChange={(e) => setDraftUnit(e.target.value)}
-                placeholder="Unit / TAG (e.g. F12345) — optional"
+              <input id="editUnitInput" value={draftUnit} onChange={(e) => setDraftUnit(e.target.value)} placeholder="Unit / TAG — optional"
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
                 onKeyDown={(e) => { if (e.key === "Enter") addMachine(); }}
               />
               <div className="flex gap-2">
-                <button onClick={() => { setAdding(false); setDraftTitle(""); setDraftUnit(""); }} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">
-                  Cancel
-                </button>
-                <button onClick={addMachine} disabled={!draftTitle.trim()} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold disabled:opacity-40 transition-opacity">
-                  Add
-                </button>
+                <button onClick={() => { setAdding(false); setDraftTitle(""); setDraftUnit(""); }} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">Cancel</button>
+                <button onClick={addMachine} disabled={!draftTitle.trim()} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold disabled:opacity-40 transition-opacity">Add</button>
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setAdding(true)}
-              className="w-full border-2 border-dashed border-border rounded-xl py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-            >
+            <button onClick={() => setAdding(true)} className="w-full border-2 border-dashed border-border rounded-xl py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
               <Plus size={14} />Add Machine
             </button>
           )}
@@ -601,13 +521,13 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
   );
 }
 
-// ─── Summary cards ────────────────────────────────────────────────────────────
-
-function ActivityCard({ activity, index, onEdit, onRemove }: { activity: Activity; index: number; onEdit: () => void; onRemove: () => void }) {
+function ActivityCard({ activity, index, existingPhotoCount, onEdit, onRemove }: {
+  activity: Activity; index: number; existingPhotoCount: number; onEdit: () => void; onRemove: () => void;
+}) {
   const fmt = (t: string) => { const [h, m] = t.split(":").map(Number); return `${(h % 12) || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
   const cfg = WORK_TYPE_CONFIG[activity.workType];
-  const isBC = activity.workType === "back-charge";
-  const needsPhotos = isBC && activity.photos.length < 5;
+  const totalPhotos = existingPhotoCount + activity.photos.length;
+  const needsPhotos = activity.workType === "back-charge" && totalPhotos < 5;
 
   return (
     <div className={`bg-card border rounded-xl px-4 py-3 space-y-2.5 border-l-[3px] ${cfg.border} ${needsPhotos ? "border-amber-400/60" : "border-border/40"}`}>
@@ -626,49 +546,37 @@ function ActivityCard({ activity, index, onEdit, onRemove }: { activity: Activit
           <button onClick={onRemove} className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"><X size={13} /></button>
         </div>
       </div>
-
       {activity.description && <p className="text-sm text-foreground line-clamp-2">{activity.description}</p>}
-
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Clock size={12} /><span>{fmt(activity.timeStart)} → {fmt(activity.timeEnd)}</span>
         </div>
-        {activity.photos.length > 0 && (
+        {totalPhotos > 0 && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Camera size={12} /><span>{activity.photos.length} photo{activity.photos.length !== 1 ? "s" : ""}</span>
+            <Camera size={12} /><span>{totalPhotos} photo{totalPhotos !== 1 ? "s" : ""}</span>
           </div>
         )}
       </div>
-
       {activity.workerNames.length > 0 && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Users size={12} /><span>{activity.workerNames.join(", ")}</span>
         </div>
       )}
-
       {needsPhotos && (
         <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-          <AlertTriangle size={10} />Back Charge requires at least 5 photos ({5 - activity.photos.length} more needed)
+          <AlertTriangle size={10} />Back Charge requires at least 5 photos ({5 - totalPhotos} more needed)
         </p>
       )}
     </div>
   );
 }
 
-// ─── Photo section (general + activity) ───────────────────────────────────────
-
-function PhotoSection({ photos, onAdd, onRemove, required, requireLabel }: {
-  photos: File[];
-  onAdd: (files: File[]) => void;
-  onRemove: (i: number) => void;
-  required?: number;
-  requireLabel?: string;
+function PhotoSection({ photos, onAdd, onRemove }: {
+  photos: File[]; onAdd: (files: File[]) => void; onRemove: (i: number) => void;
 }) {
   const cameraRef  = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
-  const needsMore  = required !== undefined && photos.length < required;
 
-  // Read files into new Blob-backed File objects immediately to prevent stale File references at upload time
   async function processAndAdd(fileList: FileList | null, input: HTMLInputElement | null) {
     if (!fileList || fileList.length === 0) return;
     const result: File[] = [];
@@ -679,18 +587,11 @@ function PhotoSection({ photos, onAdd, onRemove, required, requireLabel }: {
       result.push(new File([blob], f.name, { type: f.type }));
     }
     onAdd(result);
-    // Reset input so the same file(s) can be selected again
     if (input) input.value = "";
   }
 
   return (
     <div className="space-y-3">
-      {needsMore && requireLabel && (
-        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2">
-          <AlertTriangle size={12} className="shrink-0" />
-          {requireLabel} ({photos.length}/{required})
-        </div>
-      )}
       <div className="grid grid-cols-2 gap-3">
         <button type="button" onClick={() => cameraRef.current?.click()} className="border-2 border-dashed border-border rounded-xl py-5 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
           <Camera size={18} />Camera
@@ -718,22 +619,6 @@ function PhotoSection({ photos, onAdd, onRemove, required, requireLabel }: {
   );
 }
 
-// ─── Date Input ───────────────────────────────────────────────────────────────
-
-function DateInput({ value, max, onChange }: { value: string; max: string; onChange: (v: string) => void }) {
-  const [y, m, d] = value.split("-").map(Number);
-  const display = `${String(m).padStart(2, "0")} / ${String(d).padStart(2, "0")} / ${y}`;
-  return (
-    <div className="relative flex items-center justify-center gap-2 bg-background border border-foreground/25 rounded-lg px-3 py-3">
-      <CalendarDays size={16} className="text-muted-foreground shrink-0 pointer-events-none" />
-      <span className="text-sm text-foreground pointer-events-none">{display}</span>
-      <input type="date" value={value} max={max} onChange={(e) => e.target.value && onChange(e.target.value)} className="date-overlay absolute inset-0 w-full h-full" />
-    </div>
-  );
-}
-
-// ─── Time Input ───────────────────────────────────────────────────────────────
-
 function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [hRaw, mRaw] = value.split(":").map(Number);
   const isPM   = hRaw >= 12;
@@ -748,11 +633,11 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
   return (
     <div className="flex items-center bg-card border border-foreground/25 rounded-lg px-3 py-2.5 gap-1">
       <select value={hour12} onChange={(e) => emit(Number(e.target.value), mRaw, isPM)} className="bg-transparent text-sm text-foreground focus:outline-none appearance-none text-center w-6">
-        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (<option key={h} value={h}>{h}</option>))}
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{h}</option>)}
       </select>
       <span className="text-sm text-muted-foreground">:</span>
       <select value={MINUTES.includes(mRaw) ? mRaw : 0} onChange={(e) => emit(hour12, Number(e.target.value), isPM)} className="bg-transparent text-sm text-foreground focus:outline-none appearance-none text-center w-7">
-        {MINUTES.map((m) => (<option key={m} value={m}>{String(m).padStart(2, "0")}</option>))}
+        {MINUTES.map((m) => <option key={m} value={m}>{String(m).padStart(2, "0")}</option>)}
       </select>
       <button type="button" onClick={() => emit(hour12, mRaw, !isPM)} className="ml-1 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 transition-colors">
         {isPM ? "PM" : "AM"}
@@ -760,8 +645,6 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
     </div>
   );
 }
-
-// ─── Bottom Sheet ─────────────────────────────────────────────────────────────
 
 function BottomSheet({ open, onClose, title, step, totalSteps, children, footer }: {
   open: boolean; onClose: () => void; title: string;
@@ -796,73 +679,41 @@ function BottomSheet({ open, onClose, title, step, totalSteps, children, footer 
   );
 }
 
-// ─── Location Sheet ───────────────────────────────────────────────────────────
-
 function LocationSheet({ open, path, candidates, loading, onPick, onBack, onClose }: {
-  open: boolean;
-  path: QBTJobcode[];
-  candidates: QBTJobcode[];
-  loading: boolean;
-  onPick: (node: QBTJobcode) => void;
-  onBack: (toIndex: number) => void;
-  onClose: () => void;
+  open: boolean; path: QBTJobcode[]; candidates: QBTJobcode[]; loading: boolean;
+  onPick: (node: QBTJobcode) => void; onBack: (toIndex: number) => void; onClose: () => void;
 }) {
   const title = path.length === 0 ? "Select Jobsite" : `Select under "${path[path.length - 1].name}"`;
-
   return (
-    <BottomSheet
-      open={open}
-      onClose={onClose}
-      title={title}
-      footer={
-        <button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">
-          Cancel
-        </button>
-      }
+    <BottomSheet open={open} onClose={onClose} title={title}
+      footer={<button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Cancel</button>}
     >
       <div className="space-y-3 py-2">
-        {/* Breadcrumb */}
         {path.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap">
-            <button onClick={() => onBack(0)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Root
-            </button>
+            <button onClick={() => onBack(0)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Root</button>
             {path.map((node, i) => (
               <span key={node.id} className="flex items-center gap-1">
                 <ChevronRight size={10} className="text-muted-foreground" />
-                <button
-                  onClick={() => onBack(i + 1)}
-                  className={`text-xs transition-colors ${i === path.length - 1 ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"}`}
-                >
+                <button onClick={() => onBack(i + 1)} className={`text-xs transition-colors ${i === path.length - 1 ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"}`}>
                   {node.name}
                 </button>
               </span>
             ))}
           </div>
         )}
-
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 size={20} className="animate-spin text-muted-foreground" />
-          </div>
+          <div className="flex items-center justify-center py-8"><Loader2 size={20} className="animate-spin text-muted-foreground" /></div>
         ) : candidates.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-muted-foreground">No entries found in QuickBooks Time.</p>
-            <p className="text-xs text-muted-foreground mt-1">Check the jobcodes configuration in QBT.</p>
           </div>
         ) : (
           <div className="space-y-1.5">
             {candidates.map((node) => (
-              <button
-                key={node.id}
-                onClick={() => onPick(node)}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-border/40 bg-card text-left hover:border-primary hover:bg-primary/5 transition-colors"
-              >
+              <button key={node.id} onClick={() => onPick(node)} className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-border/40 bg-card text-left hover:border-primary hover:bg-primary/5 transition-colors">
                 <span className="text-sm font-medium text-foreground">{node.name}</span>
-                {node.has_children
-                  ? <ChevronRight size={14} className="text-muted-foreground" />
-                  : <Check size={14} className="text-primary" />
-                }
+                {node.has_children ? <ChevronRight size={14} className="text-muted-foreground" /> : <Check size={14} className="text-primary" />}
               </button>
             ))}
           </div>
@@ -871,8 +722,6 @@ function LocationSheet({ open, path, candidates, loading, onPick, onBack, onClos
     </BottomSheet>
   );
 }
-
-// ─── useSheetStep ─────────────────────────────────────────────────────────────
 
 function useSheetStep(open: boolean) {
   const [displayed, setDisplayed] = useState<1 | 2>(1);
@@ -890,8 +739,7 @@ function useSheetStep(open: boolean) {
     }, 180);
   }
 
-  const cls = [
-    "transition-all duration-200 ease-in-out",
+  const cls = ["transition-all duration-200 ease-in-out",
     anim === "idle" ? "opacity-100 translate-x-0"
       : anim === "exit"  ? (dir === "forward" ? "opacity-0 -translate-x-6" : "opacity-0 translate-x-6")
       : (dir === "forward" ? "opacity-0 translate-x-6" : "opacity-0 -translate-x-6"),
@@ -900,56 +748,44 @@ function useSheetStep(open: boolean) {
   return { displayed, goTo, cls };
 }
 
-// ─── Activity Sheet ───────────────────────────────────────────────────────────
-
-function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
-  open: boolean; workers: Worker[]; draft: Activity;
+function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onClose, onConfirm }: {
+  open: boolean; workers: Worker[]; draft: Activity; existingPhotoCount: number;
   onChange: (a: Activity) => void; onClose: () => void; onConfirm: () => void;
 }) {
   const { displayed, goTo, cls } = useSheetStep(open);
   const [search, setSearch] = useState("");
   useEffect(() => { if (open) setSearch(""); }, [open]);
 
-  const isBC        = draft.workType === "back-charge";
-  const canNext     = draft.description.trim().length > 0;
-  const canConfirm  = !isBC || draft.photos.length >= 5;
+  const isBC       = draft.workType === "back-charge";
+  const canNext    = draft.description.trim().length > 0;
+  const canConfirm = !isBC || (existingPhotoCount + draft.photos.length) >= 5;
 
   return (
-    <BottomSheet
-      open={open}
-      onClose={onClose}
-      title={displayed === 1 ? "Activity — What" : "Activity — Who"}
-      step={displayed}
-      totalSteps={2}
-      footer={
-        displayed === 1 ? (
-          <>
-            <button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Cancel</button>
-            <button onClick={() => goTo(2)} disabled={!canNext} className="flex-1 bg-primary text-primary-foreground rounded-lg py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
-              Next <ChevronRight size={16} />
-            </button>
-          </>
-        ) : (
-          <>
-            <button onClick={() => goTo(1)} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Back</button>
-            <button onClick={onConfirm} disabled={!canConfirm} className="flex-1 bg-primary text-primary-foreground rounded-lg py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
-              <Check size={16} />Confirm
-            </button>
-          </>
-        )
-      }
+    <BottomSheet open={open} onClose={onClose} title={displayed === 1 ? "Activity — What" : "Activity — Who"} step={displayed} totalSteps={2}
+      footer={displayed === 1 ? (
+        <>
+          <button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Cancel</button>
+          <button onClick={() => goTo(2)} disabled={!canNext} className="flex-1 bg-primary text-primary-foreground rounded-lg py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
+            Next <ChevronRight size={16} />
+          </button>
+        </>
+      ) : (
+        <>
+          <button onClick={() => goTo(1)} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Back</button>
+          <button onClick={onConfirm} disabled={!canConfirm} className="flex-1 bg-primary text-primary-foreground rounded-lg py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
+            <Check size={16} />Confirm
+          </button>
+        </>
+      )}
     >
       <div className={cls}>
         {displayed === 1 ? (
           <div className="space-y-4 py-2">
-            {/* Description */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><AlignLeft size={12} />Description</label>
               <textarea value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} rows={4} placeholder="Describe the work performed…" autoFocus
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none" />
             </div>
-
-            {/* Time range */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Clock size={12} />Start</label>
@@ -960,8 +796,6 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
                 <TimeInput value={draft.timeEnd} onChange={(v) => onChange({ ...draft, timeEnd: v })} />
               </div>
             </div>
-
-            {/* Work type */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Tag size={12} />Work Type</label>
               <div className="grid grid-cols-2 gap-2">
@@ -976,14 +810,10 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
                 })}
               </div>
             </div>
-
-            {/* Activity Photos */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Camera size={12} />Photos for this Activity</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Camera size={12} />Add Photos</label>
               <PhotoSection
                 photos={draft.photos}
-                required={isBC ? 5 : undefined}
-                requireLabel={isBC ? "Back Charge requires at least 5 photos" : undefined}
                 onAdd={(files) => onChange({ ...draft, photos: [...draft.photos, ...files] })}
                 onRemove={(i) => onChange({ ...draft, photos: draft.photos.filter((_, idx) => idx !== i) })}
               />
@@ -1031,6 +861,3 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
     </BottomSheet>
   );
 }
-
-// ─── Subcontractor Sheet ──────────────────────────────────────────────────────
-
