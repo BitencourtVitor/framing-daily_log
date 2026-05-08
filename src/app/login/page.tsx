@@ -123,7 +123,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/sublogo_framing.png" alt="Premium Framing" width={200} height={54} className="object-contain" />
+          <img src="/images/framing.png" alt="Premium Framing" width={240} height={80} className="object-contain" />
           <span className="text-3xl font-semibold tracking-tight text-foreground">Daily Log</span>
         </div>
 

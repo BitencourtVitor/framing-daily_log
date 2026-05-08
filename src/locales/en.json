@@ -135,7 +135,8 @@
     "subtitleBefore": "Download the PDF and send it in ",
     "subtitleAfter": " before closing.",
     "download": "Download PDF",
-    "closing": "You can close this window in a moment…"
+    "closing": "You can close this window in a moment…",
+    "photoInstruction": "Also attach today's site photos in Buildertrend."
   },
   "admin": {
     "title": "Admin",

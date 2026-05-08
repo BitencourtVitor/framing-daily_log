@@ -39,8 +39,7 @@ interface FormNotes {
   supervisorNotes: string; supervisorNotesNA: boolean;
 }
 interface FormState {
-  locationId: string;
-  locationPath: string[];
+  locationText: string;
   activities: Activity[];
   subcontractors: SubEntry[];
   notes: FormNotes;
@@ -53,8 +52,6 @@ interface ExistingPhoto {
   storageKey: string;
   mimetype: string;
 }
-interface QBTJobcode { id: number; name: string; has_children: boolean; parent_id: number }
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WORK_TYPE_CONFIG = {
@@ -86,9 +83,10 @@ export default function EditLogPage() {
   const [saving,    setSaving]   = useState(false);
   const [saveError, setSaveError] = useState("");
   const [logDate,   setLogDate]  = useState("");
+  const [isAdmin,   setIsAdmin]  = useState(false);
 
   const [form, setForm] = useState<FormState>({
-    locationId: "", locationPath: [], activities: [], subcontractors: [], notes: { ...EMPTY_NOTES }, newGeneralPhotos: [],
+    locationText: "", activities: [], subcontractors: [], notes: { ...EMPTY_NOTES }, newGeneralPhotos: [],
   });
 
   const [existingGeneralPhotos, setExistingGeneralPhotos] = useState<ExistingPhoto[]>([]);
@@ -105,23 +103,20 @@ export default function EditLogPage() {
   const [saveModal, setSaveModal]                         = useState(false);
   const [saveModalCloseEnabled, setSaveModalCloseEnabled] = useState(false);
 
-  const [locSheet,      setLocSheet]      = useState(false);
-  const [locPath,       setLocPath]       = useState<QBTJobcode[]>([]);
-  const [locCandidates, setLocCandidates] = useState<QBTJobcode[]>([]);
-  const [locLoading,    setLocLoading]    = useState(false);
-
   useEffect(() => {
     const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
     Promise.all([
       fetch(`/api/daily-log/${id}`).then((r) => (r.ok ? r.json() : Promise.reject())),
       fetch(`/api/daily-log/${id}/photos`).then((r) => (r.ok ? r.json() : [])),
       fetch("/api/qbt/workers").then((r) => r.json()).catch(() => []),
-    ]).then(([log, photos, workers]) => {
-      if (log.date !== todayStr) { router.replace(`/log/${id}`); return; }
+      fetch("/api/me").then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([log, photos, workers, me]) => {
+      const admin = me?.role === "admin" || me?.role === "dev";
+      setIsAdmin(admin);
+      if (!admin && log.date !== todayStr) { router.replace(`/log/${id}`); return; }
       setLogDate(log.date);
       setForm({
-        locationId:     log.locationId ?? "",
-        locationPath:   log.locationPath ?? [],
+        locationText:   (log.locationPath ?? [])[0] ?? log.locationId ?? "",
         activities:     (log.activities ?? []).map((a: Omit<Activity, "photos">) => ({ ...a, chargeableSub: a.chargeableSub ?? "", photos: [] })),
         subcontractors: (log.subcontractors ?? []).map((s: SubEntry) => ({ company: s.company, workerNames: s.workerNames ?? [], description: s.description ?? "" })),
         notes:          log.notes ?? { ...EMPTY_NOTES },
@@ -160,48 +155,13 @@ export default function EditLogPage() {
     setForm((f) => ({ ...f, activities: f.activities.filter((_, idx) => idx !== i) }));
   }
 
-  async function fetchJobcodes(parentId: number) {
-    const data = await fetch(`/api/qbt/jobcodes?parentId=${parentId}`).then((r) => r.json()).catch(() => []);
-    return Array.isArray(data) ? data as QBTJobcode[] : [];
-  }
-
-  async function openLocSheet() {
-    setLocSheet(true); setLocPath([]); setLocLoading(true);
-    setLocCandidates(await fetchJobcodes(0));
-    setLocLoading(false);
-  }
-
-  async function pickLocNode(node: QBTJobcode) {
-    const newPath = [...locPath, node];
-    if (!node.has_children) {
-      setForm((f) => ({ ...f, locationId: String(node.id), locationPath: newPath.map((n) => n.name) }));
-      setLocSheet(false); return;
-    }
-    setLocLoading(true);
-    const children = await fetchJobcodes(node.id);
-    const allLeaves = children.length > 0 && children.every((c) => !c.has_children);
-    if (allLeaves) {
-      setForm((f) => ({ ...f, locationId: String(node.id), locationPath: newPath.map((n) => n.name) }));
-      setLocSheet(false); setLocLoading(false); return;
-    }
-    setLocPath(newPath); setLocCandidates(children); setLocLoading(false);
-  }
-
-  async function goBackLoc(toIndex: number) {
-    const newPath = locPath.slice(0, toIndex);
-    setLocPath(newPath); setLocLoading(true);
-    const last = newPath[newPath.length - 1];
-    setLocCandidates(await fetchJobcodes(last ? last.id : 0));
-    setLocLoading(false);
-  }
-
   async function deleteExistingPhoto(photo: ExistingPhoto) {
     await fetch(`/api/daily-log/${id}/photos?photoId=${photo._id}`, { method: "DELETE" });
     setExistingGeneralPhotos((prev) => prev.filter((p) => p._id !== photo._id));
   }
 
   async function handleSave() {
-    if (!form.locationId) { setSaveError(t("logForm.selectJobsiteSave")); return; }
+    if (!form.locationText.trim()) { setSaveError(t("logForm.selectJobsiteSave")); return; }
     if (form.activities.length === 0) { setSaveError(t("logForm.addActivityFirstSave")); return; }
     const bcIdx = form.activities.findIndex((act, i) =>
       act.workType === "back-charge" && (existingActivityPhotoCounts[i] ?? 0) + act.photos.length < 2
@@ -218,8 +178,8 @@ export default function EditLogPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          locationId:   form.locationId || null,
-          locationPath: form.locationPath,
+          locationId:   null,
+          locationPath: form.locationText.trim() ? [form.locationText.trim()] : [],
           workers,
           activities: form.activities.map((a) => ({
             workerNames: a.workerNames, description: a.description,
@@ -293,22 +253,16 @@ export default function EditLogPage() {
           </PageSection>
 
           <PageSection title={t("logForm.jobsite")} icon={MapPin}>
-            {form.locationPath.length > 0 ? (
-              <div className="flex items-center gap-2 bg-card border border-border/40 rounded-xl px-4 py-3">
-                <MapPin size={14} className="text-primary shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-0.5">{t("logForm.lotBuilding")}</p>
-                  <p className="text-sm font-medium text-foreground">{form.locationPath.join(" › ")}</p>
-                </div>
-                <button onClick={openLocSheet} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
-                  <Pencil size={13} />
-                </button>
-              </div>
-            ) : (
-              <button onClick={openLocSheet} className="w-full border-2 border-dashed border-border rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-                <MapPin size={15} />{t("logForm.selectJobsiteLabel")}
-              </button>
-            )}
+            <div className="flex items-center gap-2 bg-card border border-foreground/25 rounded-xl px-4 py-3">
+              <MapPin size={14} className="text-primary shrink-0" />
+              <input
+                type="text"
+                value={form.locationText}
+                onChange={(e) => setForm((f) => ({ ...f, locationText: e.target.value }))}
+                placeholder={t("logForm.selectJobsiteLabel")}
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+            </div>
           </PageSection>
 
           <PageSection title={t("logForm.premiumFraming")} icon={HardHatIcon}>
@@ -414,11 +368,6 @@ export default function EditLogPage() {
         logId={id}
         closeEnabled={saveModalCloseEnabled}
         onClose={() => { setSaveModal(false); router.push(`/log/${id}`); }}
-      />
-
-      <LocationSheet
-        open={locSheet} path={locPath} candidates={locCandidates} loading={locLoading}
-        onPick={pickLocNode} onBack={goBackLoc} onClose={() => setLocSheet(false)}
       />
 
       <ActivitySheet
@@ -723,51 +672,6 @@ function BottomSheet({ open, onClose, title, step, totalSteps, children, footer 
   );
 }
 
-function LocationSheet({ open, path, candidates, loading, onPick, onBack, onClose }: {
-  open: boolean; path: QBTJobcode[]; candidates: QBTJobcode[]; loading: boolean;
-  onPick: (node: QBTJobcode) => void; onBack: (toIndex: number) => void; onClose: () => void;
-}) {
-  const { t } = useI18n();
-  const title = path.length === 0 ? t("logForm.selectJobsiteLabel") : t("logForm.selectUnder", { name: path[path.length - 1].name });
-  return (
-    <BottomSheet open={open} onClose={onClose} title={title}
-      footer={<button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">{t("common.cancel")}</button>}
-    >
-      <div className="space-y-3 py-2">
-        {path.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap">
-            <button onClick={() => onBack(0)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{t("logForm.root")}</button>
-            {path.map((node, i) => (
-              <span key={node.id} className="flex items-center gap-1">
-                <ChevronRight size={10} className="text-muted-foreground" />
-                <button onClick={() => onBack(i + 1)} className={`text-xs transition-colors ${i === path.length - 1 ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"}`}>
-                  {node.name}
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {loading ? (
-          <div className="flex items-center justify-center py-8"><Loader2 size={20} className="animate-spin text-muted-foreground" /></div>
-        ) : candidates.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground">{t("logForm.noQBTEntries")}</p>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {candidates.map((node) => (
-              <button key={node.id} onClick={() => onPick(node)} className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-border/40 bg-card text-left hover:border-primary hover:bg-primary/5 transition-colors">
-                <span className="text-sm font-medium text-foreground">{node.name}</span>
-                {node.has_children ? <ChevronRight size={14} className="text-muted-foreground" /> : <Check size={14} className="text-primary" />}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </BottomSheet>
-  );
-}
-
 function useSheetStep(open: boolean) {
   const [displayed, setDisplayed] = useState<1 | 2>(1);
   const [anim, setAnim]           = useState<"idle" | "exit" | "enter">("idle");
@@ -1056,11 +960,20 @@ function SaveModal({ open, logId, closeEnabled, onClose }: {
             <X size={18} />
           </button>
         </div>
-        <div>
+        <div className="space-y-3">
           <p className="text-base font-semibold text-foreground">{t("submitModal.updated")}</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("submitModal.subtitleBefore")}<span className="font-semibold text-foreground">Buildertrend</span>{t("submitModal.subtitleAfter")}
-          </p>
+          <div className="space-y-2">
+            <div className="flex gap-2.5">
+              <span className="text-xs font-bold text-primary shrink-0 mt-0.5">1.</span>
+              <p className="text-sm text-muted-foreground">
+                {t("submitModal.subtitleBefore")}<span className="font-semibold text-foreground">Buildertrend</span>{t("submitModal.subtitleAfter")}
+              </p>
+            </div>
+            <div className="flex gap-2.5">
+              <span className="text-xs font-bold text-primary shrink-0 mt-0.5">2.</span>
+              <p className="text-sm text-muted-foreground">{t("submitModal.photoInstruction")}</p>
+            </div>
+          </div>
         </div>
         <div className="flex flex-col gap-2">
           <button

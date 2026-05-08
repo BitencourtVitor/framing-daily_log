@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import { DailyLog } from "@/models/DailyLog";
+import { sendDailyLogEmail, sendBackChargeEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -28,8 +29,35 @@ export async function POST(req: NextRequest) {
     activities: activities ?? [],
     subcontractors: subcontractors ?? [],
     notes: notes ?? {},
-    status: "draft",
+    status: "submitted",
   });
+
+  // Fire emails async — don't block the response
+  const emailData = {
+    supervisorName: session.name,
+    date,
+    locationPath: locationPath ?? [],
+    activities: (activities ?? []).map((a: {
+      workType: string; description: string; timeStart: string;
+      timeEnd: string; workerNames: string[]; chargeableSub?: string;
+    }) => ({
+      workType:     a.workType,
+      description:  a.description,
+      timeStart:    a.timeStart,
+      timeEnd:      a.timeEnd,
+      workerNames:  a.workerNames ?? [],
+      chargeableSub: a.chargeableSub,
+    })),
+  };
+
+  sendDailyLogEmail(emailData).catch((e) => console.error("[email:DL]", e));
+
+  const hasBackCharge = (activities ?? []).some(
+    (a: { workType: string }) => a.workType === "back-charge"
+  );
+  if (hasBackCharge) {
+    sendBackChargeEmail(emailData).catch((e) => console.error("[email:BC]", e));
+  }
 
   return NextResponse.json({ id: log._id.toString() }, { status: 201 });
 }

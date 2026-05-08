@@ -41,17 +41,26 @@ export interface INotes {
   supervisorNotesNA: boolean;
 }
 
+export interface IEditRecord {
+  editedById: string;
+  editedByName: string;
+  editedAt: Date;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+}
+
 export interface IDailyLog extends Document {
   supervisorId: string;
   supervisorName: string;
   date: string;
-  locationId?: string; // QBT jobcode ID (stringified number)
-  locationPath?: string[]; // snapshot: ["Customer", "Client", "Jobsite", "Lot"]
+  locationId?: string;
+  locationPath?: string[];
   workers: IWorker[];
   activities: IActivity[];
   subcontractors: ISubcontractorEntry[];
   notes: INotes;
   status: LogStatus;
+  editHistory?: IEditRecord[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -116,6 +125,16 @@ const DailyLogSchema = new Schema<IDailyLog>(
       enum: ["draft", "submitted"],
       default: "draft",
     },
+    editHistory: [
+      {
+        _id: false,
+        editedById:   { type: String, required: true },
+        editedByName: { type: String, required: true },
+        editedAt:     { type: Date,   required: true },
+        before:       { type: Schema.Types.Mixed },
+        after:        { type: Schema.Types.Mixed },
+      },
+    ],
   },
   { timestamps: true }
 );

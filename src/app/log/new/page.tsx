@@ -69,15 +69,12 @@ interface FormNotes {
 
 interface FormState {
   date: string;
-  locationId: string;
-  locationPath: string[];
+  locationText: string;
   activities: Activity[];
   subcontractors: SubEntry[];
   notes: FormNotes;
   photos: File[];
 }
-
-interface QBTJobcode { id: number; name: string; has_children: boolean; parent_id: number }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -116,8 +113,7 @@ export default function NewLogPage() {
 
   const [form, setForm] = useState<FormState>({
     date: TODAY,
-    locationId: "",
-    locationPath: [],
+    locationText: "",
     activities: [],
     subcontractors: [],
     notes: { ...EMPTY_NOTES },
@@ -140,12 +136,6 @@ export default function NewLogPage() {
   const [submitModal, setSubmitModal]                       = useState(false);
   const [submittedLogId, setSubmittedLogId]                 = useState("");
   const [submitModalCloseEnabled, setSubmitModalCloseEnabled] = useState(false);
-
-  // Location sheet
-  const [locSheet, setLocSheet]           = useState(false);
-  const [locPath, setLocPath]             = useState<QBTJobcode[]>([]);
-  const [locCandidates, setLocCandidates] = useState<QBTJobcode[]>([]);
-  const [locLoading, setLocLoading]       = useState(false);
 
   useEffect(() => {
     const from = new Date();
@@ -181,57 +171,12 @@ export default function NewLogPage() {
     setForm((f) => ({ ...f, activities: f.activities.filter((_, idx) => idx !== i) }));
   }
 
-  // ── Location handlers ───────────────────────────────────────────────────────
-
-  async function fetchJobcodes(parentId: number) {
-    const data = await fetch(`/api/qbt/jobcodes?parentId=${parentId}`).then((r) => r.json()).catch(() => []);
-    return Array.isArray(data) ? data as QBTJobcode[] : [];
-  }
-
-  async function openLocSheet() {
-    setLocSheet(true);
-    setLocPath([]);
-    setLocLoading(true);
-    setLocCandidates(await fetchJobcodes(0));
-    setLocLoading(false);
-  }
-
-  async function pickLocNode(node: QBTJobcode) {
-    const newPath = [...locPath, node];
-    if (!node.has_children) {
-      setForm((f) => ({ ...f, locationId: String(node.id), locationPath: newPath.map((n) => n.name) }));
-      setLocSheet(false);
-      return;
-    }
-    setLocLoading(true);
-    const children = await fetchJobcodes(node.id);
-    const allLeaves = children.length > 0 && children.every((c) => !c.has_children);
-    if (allLeaves) {
-      setForm((f) => ({ ...f, locationId: String(node.id), locationPath: newPath.map((n) => n.name) }));
-      setLocSheet(false);
-      setLocLoading(false);
-      return;
-    }
-    setLocPath(newPath);
-    setLocCandidates(children);
-    setLocLoading(false);
-  }
-
-  async function goBackLoc(toIndex: number) {
-    const newPath = locPath.slice(0, toIndex);
-    setLocPath(newPath);
-    setLocLoading(true);
-    const last = newPath[newPath.length - 1];
-    setLocCandidates(await fetchJobcodes(last ? last.id : 0));
-    setLocLoading(false);
-  }
-
   // ── Submit ──────────────────────────────────────────────────────────────────
 
   function validate(): string | null {
     if (!form.date) return t("logForm.selectDate");
     if (dateBlocked) return t("logForm.logExists");
-    if (!form.locationId) return t("logForm.selectJobsite");
+    if (!form.locationText.trim()) return t("logForm.selectJobsite");
     if (form.activities.length === 0) return t("logForm.addActivityFirst");
     const bcIdx = form.activities.findIndex((a) => a.workType === "back-charge" && a.photos.length < 2);
     if (bcIdx !== -1) return t("logForm.bcPhotosRequired", { n: bcIdx + 1 });
@@ -250,8 +195,8 @@ export default function NewLogPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: form.date,
-          locationId: form.locationId || undefined,
-          locationPath: form.locationPath,
+          locationId: null,
+          locationPath: form.locationText.trim() ? [form.locationText.trim()] : [],
           workers: [...new Set(form.activities.flatMap((a) => a.workerNames))].map((name) => {
             const w = allWorkers.find((w) => w.name === name);
             return { qbtUserId: w?.id ?? 0, name };
@@ -349,26 +294,16 @@ export default function NewLogPage() {
 
           {/* Location */}
           <PageSection title={t("logForm.jobsite")} icon={MapPin}>
-            {form.locationPath.length > 0 ? (
-              <div className="flex items-center gap-2 bg-card border border-border/40 rounded-xl px-4 py-3">
-                <MapPin size={14} className="text-primary shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-0.5">{t("logForm.lotBuilding")}</p>
-                  <p className="text-sm font-medium text-foreground">{form.locationPath.join(" › ")}</p>
-                </div>
-                <button onClick={openLocSheet} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
-                  <Pencil size={13} />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={openLocSheet}
-                className="w-full border-2 border-dashed border-border rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-              >
-                <MapPin size={15} />
-                {t("logForm.selectJobsiteLabel")}
-              </button>
-            )}
+            <div className="flex items-center gap-2 bg-card border border-foreground/25 rounded-xl px-4 py-3">
+              <MapPin size={14} className="text-primary shrink-0" />
+              <input
+                type="text"
+                value={form.locationText}
+                onChange={(e) => setForm((f) => ({ ...f, locationText: e.target.value }))}
+                placeholder={t("logForm.selectJobsiteLabel")}
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+            </div>
           </PageSection>
 
           {/* Premium Framing Activities */}
@@ -444,17 +379,6 @@ export default function NewLogPage() {
           </button>
         </div>
       </div>
-
-      {/* Location sheet */}
-      <LocationSheet
-        open={locSheet}
-        path={locPath}
-        candidates={locCandidates}
-        loading={locLoading}
-        onPick={(node) => pickLocNode(node)}
-        onBack={goBackLoc}
-        onClose={() => setLocSheet(false)}
-      />
 
       {/* Activity sheet */}
       <ActivitySheet
@@ -933,83 +857,6 @@ function BottomSheet({ open, onClose, title, step, totalSteps, children, footer 
   );
 }
 
-// ─── Location Sheet ───────────────────────────────────────────────────────────
-
-function LocationSheet({ open, path, candidates, loading, onPick, onBack, onClose }: {
-  open: boolean;
-  path: QBTJobcode[];
-  candidates: QBTJobcode[];
-  loading: boolean;
-  onPick: (node: QBTJobcode) => void;
-  onBack: (toIndex: number) => void;
-  onClose: () => void;
-}) {
-  const { t } = useI18n();
-  const title = path.length === 0
-    ? t("logForm.selectJobsiteLabel")
-    : t("logForm.selectUnder", { name: path[path.length - 1].name });
-
-  return (
-    <BottomSheet
-      open={open}
-      onClose={onClose}
-      title={title}
-      footer={
-        <button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">
-          {t("common.cancel")}
-        </button>
-      }
-    >
-      <div className="space-y-3 py-2">
-        {path.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap">
-            <button onClick={() => onBack(0)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              {t("logForm.root")}
-            </button>
-            {path.map((node, i) => (
-              <span key={node.id} className="flex items-center gap-1">
-                <ChevronRight size={10} className="text-muted-foreground" />
-                <button
-                  onClick={() => onBack(i + 1)}
-                  className={`text-xs transition-colors ${i === path.length - 1 ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  {node.name}
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 size={20} className="animate-spin text-muted-foreground" />
-          </div>
-        ) : candidates.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground">{t("logForm.noQBTEntries")}</p>
-            <p className="text-xs text-muted-foreground mt-1">{t("logForm.qbtConfig")}</p>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {candidates.map((node) => (
-              <button
-                key={node.id}
-                onClick={() => onPick(node)}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-border/40 bg-card text-left hover:border-primary hover:bg-primary/5 transition-colors"
-              >
-                <span className="text-sm font-medium text-foreground">{node.name}</span>
-                {node.has_children
-                  ? <ChevronRight size={14} className="text-muted-foreground" />
-                  : <Check size={14} className="text-primary" />
-                }
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </BottomSheet>
-  );
-}
 
 // ─── useSheetStep ─────────────────────────────────────────────────────────────
 
@@ -1257,11 +1104,20 @@ function SubmitModal({ open, logId, closeEnabled, onClose }: {
           </button>
         </div>
 
-        <div>
+        <div className="space-y-3">
           <p className="text-base font-semibold text-foreground">{t("submitModal.registered")}</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("submitModal.subtitleBefore")}<span className="font-semibold text-foreground">Buildertrend</span>{t("submitModal.subtitleAfter")}
-          </p>
+          <div className="space-y-2">
+            <div className="flex gap-2.5">
+              <span className="text-xs font-bold text-primary shrink-0 mt-0.5">1.</span>
+              <p className="text-sm text-muted-foreground">
+                {t("submitModal.subtitleBefore")}<span className="font-semibold text-foreground">Buildertrend</span>{t("submitModal.subtitleAfter")}
+              </p>
+            </div>
+            <div className="flex gap-2.5">
+              <span className="text-xs font-bold text-primary shrink-0 mt-0.5">2.</span>
+              <p className="text-sm text-muted-foreground">{t("submitModal.photoInstruction")}</p>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col gap-2">

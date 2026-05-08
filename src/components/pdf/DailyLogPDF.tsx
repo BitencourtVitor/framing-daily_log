@@ -183,7 +183,7 @@ const s = StyleSheet.create({
   photoCaption: { fontSize: 6.5, color: C.muted, marginTop: 2, textAlign: "center" },
 
   // Logo in header
-  topBarLogo: { width: 30, height: 30, objectFit: "contain" },
+  topBarLogo: { width: 80, height: 24, objectFit: "contain" },
 
   // Notes
   noteBlock: { marginBottom: 12 },

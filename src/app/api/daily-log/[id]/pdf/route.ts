@@ -13,7 +13,7 @@ import { DocumentProps } from "@react-pdf/renderer";
 
 function logoDataUrl() {
   try {
-    const buf = readFileSync(join(process.cwd(), "public/images/sublogo_framing.png"));
+    const buf = readFileSync(join(process.cwd(), "public/images/framing.png"));
     return `data:image/png;base64,${buf.toString("base64")}`;
   } catch {
     return undefined;

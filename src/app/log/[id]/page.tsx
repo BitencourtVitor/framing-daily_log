@@ -124,17 +124,19 @@ export default function LogDetailPage() {
   const [exporting,  setExporting]= useState(false);
   const [lightbox,   setLightbox] = useState<string | null>(null);
   const [isOwner,    setIsOwner]  = useState(false);
+  const [isAdmin,    setIsAdmin]  = useState(false);
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/daily-log/${id}`).then((r) => (r.ok ? r.json() : Promise.reject())),
       fetch(`/api/daily-log/${id}/photos`).then((r) => (r.ok ? r.json() : [])),
-      fetch("/api/me").then((r) => r.ok ? r.json() : {} as { userId?: string }),
+      fetch("/api/me").then((r) => r.ok ? r.json() : {} as { userId?: string; role?: string }),
     ])
       .then(([logData, photosData, me]) => {
         setLog(logData);
         setPhotos(Array.isArray(photosData) ? photosData : []);
         setIsOwner(me.userId === logData.supervisorId);
+        setIsAdmin(me.role === "admin" || me.role === "dev");
       })
       .catch(() => setError(t("logDetail.failedLoad")))
       .finally(() => setLoading(false));
@@ -188,7 +190,7 @@ export default function LogDetailPage() {
         </button>
         <p className="text-sm font-semibold text-foreground flex-1">{t("logDetail.title")}</p>
         <LanguageSwitcher />
-        {isOwner && log.date === (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })() && (
+        {(isAdmin || (isOwner && log.date === (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })())) && (
           <button
             onClick={() => router.push(`/log/${id}/edit`)}
             className="p-2 rounded-lg text-primary hover:bg-primary/10 transition-colors"

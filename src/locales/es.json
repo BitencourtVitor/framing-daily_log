@@ -135,7 +135,8 @@
     "subtitleBefore": "Descarga el PDF y envíalo en ",
     "subtitleAfter": " antes de cerrar.",
     "download": "Descargar PDF",
-    "closing": "Puedes cerrar en un momento…"
+    "closing": "Puedes cerrar en un momento…",
+    "photoInstruction": "También adjunta las fotos del día en Buildertrend."
   },
   "admin": {
     "title": "Admin",
