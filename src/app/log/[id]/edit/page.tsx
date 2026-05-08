@@ -367,7 +367,7 @@ export default function EditLogPage() {
         open={saveModal}
         logId={id}
         closeEnabled={saveModalCloseEnabled}
-        onClose={() => { setSaveModal(false); router.push(`/log/${id}`); }}
+        onClose={() => { window.location.href = `/log/${id}`; }}
       />
 
       <ActivitySheet

@@ -35,7 +35,7 @@ export async function PATCH(
   const { id } = await params;
   await connectDB();
 
-  const log = await DailyLog.findById(id);
+  const log = await DailyLog.findById(id).lean();
   if (!log) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const isAdmin = session.role === "admin" || session.role === "dev";
@@ -45,21 +45,21 @@ export async function PATCH(
 
   const { locationId, locationPath, workers, activities, subcontractors, notes } = await req.json();
 
-  const $set: Record<string, unknown> = {};
-  if (locationId      !== undefined) $set.locationId      = locationId ?? null;
-  if (locationPath    !== undefined) $set.locationPath    = locationPath;
-  if (workers         !== undefined) $set.workers         = workers;
-  if (activities      !== undefined) $set.activities      = activities;
-  if (subcontractors  !== undefined) $set.subcontractors  = subcontractors;
-  if (notes           !== undefined) $set.notes           = notes;
+  const updateData: Record<string, unknown> = {};
+  if (locationId      !== undefined) updateData.locationId      = locationId ?? null;
+  if (locationPath    !== undefined) updateData.locationPath    = locationPath;
+  if (workers         !== undefined) updateData.workers         = workers;
+  if (activities      !== undefined) updateData.activities      = activities;
+  if (subcontractors  !== undefined) updateData.subcontractors  = subcontractors;
+  if (notes           !== undefined) updateData.notes           = notes;
 
   if (isAdmin) {
     const before = {
-      locationPath: log.locationPath,
-      workers:      log.workers,
-      activities:   log.activities,
+      locationPath:   log.locationPath,
+      workers:        log.workers,
+      activities:     log.activities,
       subcontractors: log.subcontractors,
-      notes:        log.notes,
+      notes:          log.notes,
     };
     const after = {
       locationPath:   locationPath    ?? log.locationPath,
@@ -68,27 +68,26 @@ export async function PATCH(
       subcontractors: subcontractors  ?? log.subcontractors,
       notes:          notes           ?? log.notes,
     };
+    const auditEntry = {
+      editedById:   session.userId,
+      editedByName: session.name,
+      editedAt:     new Date(),
+      before,
+      after,
+    };
 
-    await DailyLog.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(id) },
-      {
-        $set,
-        $push: {
-          editHistory: {
-            editedById:   session.userId,
-            editedByName: session.name,
-            editedAt:     new Date(),
-            before,
-            after,
-          },
-        },
-      } as Record<string, unknown>
+    await DailyLog.findByIdAndUpdate(
+      id,
+      { $set: updateData, $push: { editHistory: auditEntry } },
+      { strict: false }
     );
   } else {
-    await DailyLog.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(id) },
-      { $set }
+    const result = await DailyLog.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: false }
     );
+    if (!result) return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
