@@ -33,6 +33,8 @@ import {
   Building2,
   Download,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,14 +61,10 @@ interface SubEntry {
 interface FormNotes {
   machineEntries: MachineEntry[];
   machinesNA: boolean;
-  materials: string;
-  materialsNA: boolean;
-  problems: string;
-  problemsNA: boolean;
-  nextDayPlan: string;
-  nextDayPlanNA: boolean;
-  supervisorNotes: string;
-  supervisorNotesNA: boolean;
+  materials: string;  materialsNA: boolean;
+  problems: string;   problemsNA: boolean;
+  nextDayPlan: string; nextDayPlanNA: boolean;
+  supervisorNotes: string; supervisorNotesNA: boolean;
 }
 
 interface FormState {
@@ -84,13 +82,12 @@ interface QBTJobcode { id: number; name: string; has_children: boolean; parent_i
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WORK_TYPE_CONFIG = {
-  normal:       { label: "Normal Labor", Icon: Hammer,      text: "text-blue-500",   bg: "bg-blue-500/10",   border: "border-blue-500/30" },
-  "back-charge":{ label: "Back Charge",  Icon: Receipt,     text: "text-amber-500",  bg: "bg-amber-500/10",  border: "border-amber-500/30" },
-  extra:        { label: "Extra",        Icon: Zap,         text: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/30" },
-  warranty:     { label: "Warranty",     Icon: ShieldCheck, text: "text-emerald-500",bg: "bg-emerald-500/10",border: "border-emerald-500/30" },
+  normal:       { labelKey: "workType.normal",     Icon: Hammer,      text: "text-blue-500",   bg: "bg-blue-500/10",   border: "border-blue-500/30" },
+  "back-charge":{ labelKey: "workType.backCharge", Icon: Receipt,     text: "text-amber-500",  bg: "bg-amber-500/10",  border: "border-amber-500/30" },
+  extra:        { labelKey: "workType.extra",       Icon: Zap,         text: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/30" },
+  warranty:     { labelKey: "workType.warranty",    Icon: ShieldCheck, text: "text-emerald-500",bg: "bg-emerald-500/10",border: "border-emerald-500/30" },
 } as const;
 type WorkTypeKey = keyof typeof WORK_TYPE_CONFIG;
-
 
 function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -113,6 +110,7 @@ const EMPTY_NOTES: FormNotes = {
 
 export default function NewLogPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
@@ -207,7 +205,6 @@ export default function NewLogPage() {
     }
     setLocLoading(true);
     const children = await fetchJobcodes(node.id);
-    // If every child is a leaf (no further children), they're work-type labels — select the parent
     const allLeaves = children.length > 0 && children.every((c) => !c.has_children);
     if (allLeaves) {
       setForm((f) => ({ ...f, locationId: String(node.id), locationPath: newPath.map((n) => n.name) }));
@@ -232,13 +229,13 @@ export default function NewLogPage() {
   // ── Submit ──────────────────────────────────────────────────────────────────
 
   function validate(): string | null {
-    if (!form.date) return "Select a date before submitting.";
-    if (dateBlocked) return "A log already exists for this date.";
-    if (!form.locationId) return "Select a jobsite before submitting.";
-    if (form.activities.length === 0) return "Add at least one activity before submitting.";
+    if (!form.date) return t("logForm.selectDate");
+    if (dateBlocked) return t("logForm.logExists");
+    if (!form.locationId) return t("logForm.selectJobsite");
+    if (form.activities.length === 0) return t("logForm.addActivityFirst");
     const bcIdx = form.activities.findIndex((a) => a.workType === "back-charge" && a.photos.length < 2);
-    if (bcIdx !== -1) return `Activity ${bcIdx + 1} (Back Charge) requires at least 2 photos.`;
-    if (form.photos.length < 5) return "Add at least 5 general photos before submitting.";
+    if (bcIdx !== -1) return t("logForm.bcPhotosRequired", { n: bcIdx + 1 });
+    if (form.photos.length < 5) return t("logForm.generalPhotosRequired");
     return null;
   }
 
@@ -291,7 +288,6 @@ export default function NewLogPage() {
 
       const { id } = await res.json();
 
-      // Upload photos one by one — read each file's buffer before sending to avoid stale File references
       async function uploadFile(file: File, extra?: Record<string, string>) {
         const buffer = await file.arrayBuffer();
         const blob   = new Blob([buffer], { type: file.type });
@@ -335,28 +331,29 @@ export default function NewLogPage() {
           <button onClick={() => router.push("/dashboard")} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
             <ChevronLeft size={20} />
           </button>
-          <p className="text-sm font-semibold text-foreground flex-1">New Daily Log</p>
+          <p className="text-sm font-semibold text-foreground flex-1">{t("logForm.newTitle")}</p>
+          <LanguageSwitcher />
         </header>
 
         <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 pb-28 space-y-6">
 
           {/* Date */}
-          <PageSection title="Date" icon={CalendarDays}>
+          <PageSection title={t("logForm.date")} icon={CalendarDays}>
             <DateInput value={form.date} max={TODAY} onChange={(v) => setForm((f) => ({ ...f, date: v }))} />
             {dateBlocked && (
               <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-                A log already exists for this date.
+                {t("logForm.logExists")}
               </p>
             )}
           </PageSection>
 
           {/* Location */}
-          <PageSection title="Jobsite" icon={MapPin}>
+          <PageSection title={t("logForm.jobsite")} icon={MapPin}>
             {form.locationPath.length > 0 ? (
               <div className="flex items-center gap-2 bg-card border border-border/40 rounded-xl px-4 py-3">
                 <MapPin size={14} className="text-primary shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-0.5">Lot / Building</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">{t("logForm.lotBuilding")}</p>
                   <p className="text-sm font-medium text-foreground">{form.locationPath.join(" › ")}</p>
                 </div>
                 <button onClick={openLocSheet} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
@@ -369,23 +366,23 @@ export default function NewLogPage() {
                 className="w-full border-2 border-dashed border-border rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
               >
                 <MapPin size={15} />
-                Select Jobsite
+                {t("logForm.selectJobsiteLabel")}
               </button>
             )}
           </PageSection>
 
           {/* Premium Framing Activities */}
-          <PageSection title="Premium Framing" icon={HardHatIcon}>
+          <PageSection title={t("logForm.premiumFraming")} icon={HardHatIcon}>
             <div className="space-y-2">
               {form.activities.map((act, i) => (
                 <ActivityCard key={i} activity={act} index={i} onEdit={() => openEditActivity(i)} onRemove={() => removeActivity(i)} />
               ))}
-              <AddItemButton onClick={openAddActivity} label="Add Activity" />
+              <AddItemButton onClick={openAddActivity} label={t("logForm.addActivity")} />
             </div>
           </PageSection>
 
           {/* Subcontractors */}
-          <PageSection title="Subcontractors" icon={Building2}>
+          <PageSection title={t("logForm.subcontractors")} icon={Building2}>
             <SubcontractorSection
               subcontractors={form.subcontractors}
               onChange={(subs) => setForm((f) => ({ ...f, subcontractors: subs }))}
@@ -399,15 +396,15 @@ export default function NewLogPage() {
             <MachinesSection notes={form.notes} onChange={(n) => setForm((f) => ({ ...f, notes: n }))} />
 
             {[
-              { key: "materials"      as const, naKey: "materialsNA"      as const, Icon: Package,        label: "Materials Delivered",   placeholder: "List materials delivered today…", rows: 2 },
-              { key: "problems"       as const, naKey: "problemsNA"       as const, Icon: AlertTriangle,  label: "Problems / Delays",     placeholder: "Any issues or delays?", rows: 2 },
-              { key: "nextDayPlan"    as const, naKey: "nextDayPlanNA"    as const, Icon: CalendarClock,  label: "Plan for Next Day",     placeholder: "What's the plan for tomorrow?", rows: 2 },
-              { key: "supervisorNotes"as const, naKey: "supervisorNotesNA"as const, Icon: MessageSquare,  label: "Notes for Supervisor",  placeholder: "Any observations for the supervisor…", rows: 2 },
+              { key: "materials"      as const, naKey: "materialsNA"      as const, Icon: Package,        labelKey: "logForm.materials",      placeholderKey: "logForm.listMaterials",   rows: 2 },
+              { key: "problems"       as const, naKey: "problemsNA"       as const, Icon: AlertTriangle,  labelKey: "logForm.problems",       placeholderKey: "logForm.anyIssues",       rows: 2 },
+              { key: "nextDayPlan"    as const, naKey: "nextDayPlanNA"    as const, Icon: CalendarClock,  labelKey: "logForm.nextDay",        placeholderKey: "logForm.tomorrowPlan",    rows: 2 },
+              { key: "supervisorNotes"as const, naKey: "supervisorNotesNA"as const, Icon: MessageSquare,  labelKey: "logForm.supervisorNotes",placeholderKey: "logForm.supervisorObs",   rows: 2 },
             ].map((f) => (
               <NoteFieldWithNA
                 key={f.key}
-                label={f.label}
-                placeholder={f.placeholder}
+                label={t(f.labelKey)}
+                placeholder={t(f.placeholderKey)}
                 rows={f.rows}
                 Icon={f.Icon}
                 value={form.notes[f.key]}
@@ -419,11 +416,11 @@ export default function NewLogPage() {
           </div>
 
           {/* General Photos */}
-          <PageSection title="General Photos" icon={Camera}>
+          <PageSection title={t("logForm.generalPhotos")} icon={Camera}>
             <PhotoSection
               photos={form.photos}
               required={5}
-              requireLabel="At least 5 general photos are required"
+              requireLabel={t("logForm.generalPhotosWarning")}
               onAdd={(files) => setForm((f) => ({ ...f, photos: [...f.photos, ...files] }))}
               onRemove={(i) => setForm((f) => ({ ...f, photos: f.photos.filter((_, idx) => idx !== i) }))}
             />
@@ -443,7 +440,7 @@ export default function NewLogPage() {
             disabled={!canSubmit}
             className="w-full max-w-lg mx-auto block bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
-            {submitting ? "Submitting…" : "Submit Daily Log"}
+            {submitting ? t("logForm.submitting") : t("logForm.submit")}
           </button>
         </div>
       </div>
@@ -520,6 +517,7 @@ function NoteFieldWithNA({
   onValueChange: (v: string) => void;
   onNAChange: (na: boolean) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -536,12 +534,12 @@ function NoteFieldWithNA({
           }`}
         >
           <Ban size={10} className={isNA ? "text-primary" : "text-muted-foreground/40"} />
-          N/A
+          {t("common.na")}
         </button>
       </div>
       {isNA ? (
         <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">
-          Not applicable
+          {t("common.notApplicable")}
         </div>
       ) : (
         <textarea
@@ -559,6 +557,7 @@ function NoteFieldWithNA({
 // ─── Machines section ─────────────────────────────────────────────────────────
 
 function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: FormNotes) => void }) {
+  const { t } = useI18n();
   const [adding, setAdding] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftUnit, setDraftUnit]   = useState("");
@@ -573,7 +572,7 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-          <Wrench size={12} />Machines &amp; Equipment on Site
+          <Wrench size={12} />{t("logForm.machines")}
         </label>
         <button
           type="button"
@@ -585,13 +584,13 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
           }`}
         >
           <Ban size={10} className={notes.machinesNA ? "text-primary" : "text-muted-foreground/40"} />
-          N/A
+          {t("common.na")}
         </button>
       </div>
 
       {notes.machinesNA ? (
         <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">
-          Not applicable
+          {t("common.notApplicable")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -600,7 +599,7 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{m.title}</p>
                 {m.unit && (
-                  <p className="text-xs text-primary font-mono mt-0.5">Unit: {m.unit}</p>
+                  <p className="text-xs text-primary font-mono mt-0.5">{t("common.unit")} {m.unit}</p>
                 )}
               </div>
               <button
@@ -618,7 +617,7 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
                 autoFocus
                 value={draftTitle}
                 onChange={(e) => setDraftTitle(e.target.value)}
-                placeholder="Machine / Equipment name…"
+                placeholder={t("logForm.machineName")}
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
                 onKeyDown={(e) => e.key === "Enter" && draftUnit !== undefined && document.getElementById("unitInput")?.focus()}
               />
@@ -626,16 +625,16 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
                 id="unitInput"
                 value={draftUnit}
                 onChange={(e) => setDraftUnit(e.target.value)}
-                placeholder="Unit / TAG (e.g. F12345) — optional"
+                placeholder={t("logForm.machineUnit")}
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
                 onKeyDown={(e) => { if (e.key === "Enter") addMachine(); }}
               />
               <div className="flex gap-2">
                 <button onClick={() => { setAdding(false); setDraftTitle(""); setDraftUnit(""); }} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button onClick={addMachine} disabled={!draftTitle.trim()} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold disabled:opacity-40 transition-opacity">
-                  Add
+                  {t("common.add")}
                 </button>
               </div>
             </div>
@@ -644,7 +643,7 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
               onClick={() => setAdding(true)}
               className="w-full border-2 border-dashed border-border rounded-xl py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
             >
-              <Plus size={14} />Add Machine
+              <Plus size={14} />{t("logForm.addMachine")}
             </button>
           )}
         </div>
@@ -659,6 +658,7 @@ function SubcontractorSection({ subcontractors, onChange }: {
   subcontractors: SubEntry[];
   onChange: (subs: SubEntry[]) => void;
 }) {
+  const { t } = useI18n();
   const [adding, setAdding]           = useState(false);
   const [draftCompany, setDraftCompany]     = useState("");
   const [draftWorkers, setDraftWorkers]     = useState("");
@@ -705,33 +705,33 @@ function SubcontractorSection({ subcontractors, onChange }: {
             autoFocus
             value={draftCompany}
             onChange={(e) => setDraftCompany(e.target.value)}
-            placeholder="Company / Team name…"
+            placeholder={t("logForm.companyName")}
             className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
           />
           <input
             value={draftWorkers}
             onChange={(e) => setDraftWorkers(e.target.value)}
-            placeholder="People involved (comma-separated)…"
+            placeholder={t("logForm.workers")}
             className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
           />
           <textarea
             value={draftDesc}
             onChange={(e) => setDraftDesc(e.target.value)}
             rows={2}
-            placeholder="What was done…"
+            placeholder={t("logForm.whatDone")}
             className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none"
           />
           <div className="flex gap-2">
             <button onClick={() => { setAdding(false); setDraftCompany(""); setDraftWorkers(""); setDraftDesc(""); }} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">
-              Cancel
+              {t("common.cancel")}
             </button>
             <button onClick={addSub} disabled={!draftCompany.trim()} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold disabled:opacity-40 transition-opacity">
-              Add
+              {t("common.add")}
             </button>
           </div>
         </div>
       ) : (
-        <AddItemButton onClick={() => setAdding(true)} label="Add Subcontractor" />
+        <AddItemButton onClick={() => setAdding(true)} label={t("logForm.addSubcontractor")} />
       )}
     </div>
   );
@@ -740,7 +740,8 @@ function SubcontractorSection({ subcontractors, onChange }: {
 // ─── Summary cards ────────────────────────────────────────────────────────────
 
 function ActivityCard({ activity, index, onEdit, onRemove }: { activity: Activity; index: number; onEdit: () => void; onRemove: () => void }) {
-  const fmt = (t: string) => { const [h, m] = t.split(":").map(Number); return `${(h % 12) || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
+  const { t } = useI18n();
+  const fmt = (time: string) => { const [h, m] = time.split(":").map(Number); return `${(h % 12) || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
   const cfg = WORK_TYPE_CONFIG[activity.workType];
   const isBC = activity.workType === "back-charge";
   const needsPhotos = isBC && activity.photos.length < 2;
@@ -753,8 +754,8 @@ function ActivityCard({ activity, index, onEdit, onRemove }: { activity: Activit
             <cfg.Icon size={14} className={cfg.text} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-foreground">Activity {index + 1}</p>
-            <p className={`text-[10px] font-medium ${cfg.text}`}>{cfg.label}</p>
+            <p className="text-xs font-semibold text-foreground">{t("logForm.activity", { n: index + 1 })}</p>
+            <p className={`text-[10px] font-medium ${cfg.text}`}>{t(cfg.labelKey)}</p>
           </div>
         </div>
         <div className="flex gap-0.5 shrink-0">
@@ -784,7 +785,7 @@ function ActivityCard({ activity, index, onEdit, onRemove }: { activity: Activit
 
       {needsPhotos && (
         <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-          <AlertTriangle size={10} />Back Charge requires at least 2 photos ({2 - activity.photos.length} more needed)
+          <AlertTriangle size={10} />{t("activitySheet.bcRequireLabel")} ({2 - activity.photos.length} more needed)
         </p>
       )}
     </div>
@@ -800,11 +801,11 @@ function PhotoSection({ photos, onAdd, onRemove, required, requireLabel }: {
   required?: number;
   requireLabel?: string;
 }) {
+  const { t } = useI18n();
   const cameraRef  = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const needsMore  = required !== undefined && photos.length < required;
 
-  // Read files into new Blob-backed File objects immediately to prevent stale File references at upload time
   async function processAndAdd(fileList: FileList | null, input: HTMLInputElement | null) {
     if (!fileList || fileList.length === 0) return;
     const result: File[] = [];
@@ -815,7 +816,6 @@ function PhotoSection({ photos, onAdd, onRemove, required, requireLabel }: {
       result.push(new File([blob], f.name, { type: f.type }));
     }
     onAdd(result);
-    // Reset input so the same file(s) can be selected again
     if (input) input.value = "";
   }
 
@@ -829,10 +829,10 @@ function PhotoSection({ photos, onAdd, onRemove, required, requireLabel }: {
       )}
       <div className="grid grid-cols-2 gap-3">
         <button type="button" onClick={() => cameraRef.current?.click()} className="border-2 border-dashed border-border rounded-xl py-5 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-          <Camera size={18} />Camera
+          <Camera size={18} />{t("common.camera")}
         </button>
         <button type="button" onClick={() => galleryRef.current?.click()} className="border-2 border-dashed border-border rounded-xl py-5 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-          <ImageIcon size={18} />Gallery
+          <ImageIcon size={18} />{t("common.gallery")}
         </button>
       </div>
       <input ref={cameraRef}  type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => processAndAdd(e.target.files, cameraRef.current)} />
@@ -904,6 +904,7 @@ function BottomSheet({ open, onClose, title, step, totalSteps, children, footer 
   step?: number; totalSteps?: number;
   children: React.ReactNode; footer: React.ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <>
       <div className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`} onClick={onClose} />
@@ -912,7 +913,7 @@ function BottomSheet({ open, onClose, title, step, totalSteps, children, footer 
         <div className="flex items-center justify-between px-5 py-3 shrink-0">
           <div>
             <p className="text-sm font-semibold text-foreground">{title}</p>
-            {step && totalSteps && <p className="text-[10px] text-muted-foreground">Step {step} of {totalSteps}</p>}
+            {step && totalSteps && <p className="text-[10px] text-muted-foreground">{t("common.step", { current: step, total: totalSteps })}</p>}
           </div>
           <div className="flex items-center gap-2">
             {step && totalSteps && (
@@ -943,7 +944,10 @@ function LocationSheet({ open, path, candidates, loading, onPick, onBack, onClos
   onBack: (toIndex: number) => void;
   onClose: () => void;
 }) {
-  const title = path.length === 0 ? "Select Jobsite" : `Select under "${path[path.length - 1].name}"`;
+  const { t } = useI18n();
+  const title = path.length === 0
+    ? t("logForm.selectJobsiteLabel")
+    : t("logForm.selectUnder", { name: path[path.length - 1].name });
 
   return (
     <BottomSheet
@@ -952,16 +956,15 @@ function LocationSheet({ open, path, candidates, loading, onPick, onBack, onClos
       title={title}
       footer={
         <button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">
-          Cancel
+          {t("common.cancel")}
         </button>
       }
     >
       <div className="space-y-3 py-2">
-        {/* Breadcrumb */}
         {path.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap">
             <button onClick={() => onBack(0)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Root
+              {t("logForm.root")}
             </button>
             {path.map((node, i) => (
               <span key={node.id} className="flex items-center gap-1">
@@ -983,8 +986,8 @@ function LocationSheet({ open, path, candidates, loading, onPick, onBack, onClos
           </div>
         ) : candidates.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground">No entries found in QuickBooks Time.</p>
-            <p className="text-xs text-muted-foreground mt-1">Check the jobcodes configuration in QBT.</p>
+            <p className="text-sm text-muted-foreground">{t("logForm.noQBTEntries")}</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("logForm.qbtConfig")}</p>
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -1042,6 +1045,7 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
   open: boolean; workers: Worker[]; draft: Activity;
   onChange: (a: Activity) => void; onClose: () => void; onConfirm: () => void;
 }) {
+  const { t } = useI18n();
   const { displayed, goTo, cls } = useSheetStep(open);
   const [search, setSearch] = useState("");
   useEffect(() => { if (open) setSearch(""); }, [open]);
@@ -1054,22 +1058,22 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
     <BottomSheet
       open={open}
       onClose={onClose}
-      title={displayed === 1 ? "Activity — What" : "Activity — Who"}
+      title={displayed === 1 ? t("activitySheet.whatTitle") : t("activitySheet.whoTitle")}
       step={displayed}
       totalSteps={2}
       footer={
         displayed === 1 ? (
           <>
-            <button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Cancel</button>
+            <button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">{t("common.cancel")}</button>
             <button onClick={() => goTo(2)} disabled={!canNext} className="flex-1 bg-primary text-primary-foreground rounded-lg py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
-              Next <ChevronRight size={16} />
+              {t("common.next")} <ChevronRight size={16} />
             </button>
           </>
         ) : (
           <>
-            <button onClick={() => goTo(1)} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Back</button>
+            <button onClick={() => goTo(1)} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">{t("common.back")}</button>
             <button onClick={onConfirm} disabled={!canConfirm} className="flex-1 bg-primary text-primary-foreground rounded-lg py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
-              <Check size={16} />Confirm
+              <Check size={16} />{t("common.confirm")}
             </button>
           </>
         )
@@ -1080,33 +1084,33 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
           <div className="space-y-4 py-2">
             {/* Description */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><AlignLeft size={12} />Description — Premium Framing Activity</label>
-              <textarea value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} rows={4} placeholder="Describe the work performed…" autoFocus
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><AlignLeft size={12} />{t("activitySheet.description")}</label>
+              <textarea value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} rows={4} placeholder={t("activitySheet.descPlaceholder")} autoFocus
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none" />
             </div>
 
             {/* Time range */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Clock size={12} />Start</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Clock size={12} />{t("activitySheet.start")}</label>
                 <TimeInput value={draft.timeStart} onChange={(v) => onChange({ ...draft, timeStart: v })} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Clock size={12} />End</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Clock size={12} />{t("activitySheet.end")}</label>
                 <TimeInput value={draft.timeEnd} onChange={(v) => onChange({ ...draft, timeEnd: v })} />
               </div>
             </div>
 
             {/* Work type */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Tag size={12} />Work Type</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Tag size={12} />{t("activitySheet.workType")}</label>
               <div className="grid grid-cols-2 gap-2">
                 {(Object.entries(WORK_TYPE_CONFIG) as [WorkTypeKey, typeof WORK_TYPE_CONFIG[WorkTypeKey]][]).map(([key, cfg]) => {
                   const sel = draft.workType === key;
                   return (
                     <button key={key} onClick={() => onChange({ ...draft, workType: key })}
                       className={`py-2.5 px-3 rounded-lg border text-xs font-medium transition-colors flex items-center gap-2 ${sel ? `${cfg.bg} ${cfg.border} ${cfg.text}` : "bg-background border-border/40 text-muted-foreground hover:border-border"}`}>
-                      <cfg.Icon size={13} />{cfg.label}
+                      <cfg.Icon size={13} />{t(cfg.labelKey)}
                     </button>
                   );
                 })}
@@ -1116,11 +1120,11 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
             {/* Back Charge: chargeable subcontractor */}
             {isBC && (
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Building2 size={12} />Subcontractor Responsible</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Building2 size={12} />{t("activitySheet.chargeableSub")}</label>
                 <input
                   value={draft.chargeableSub ?? ""}
                   onChange={(e) => onChange({ ...draft, chargeableSub: e.target.value })}
-                  placeholder="Which subcontractor caused this charge?"
+                  placeholder={t("activitySheet.chargeablePlaceholder")}
                   className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
                 />
               </div>
@@ -1128,11 +1132,11 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
 
             {/* Activity Photos */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Camera size={12} />Photos for this Activity</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Camera size={12} />{t("activitySheet.photos")}</label>
               <PhotoSection
                 photos={draft.photos}
                 required={isBC ? 2 : undefined}
-                requireLabel={isBC ? "Back Charge requires at least 2 photos" : undefined}
+                requireLabel={isBC ? t("activitySheet.bcRequireLabel") : undefined}
                 onAdd={(files) => onChange({ ...draft, photos: [...draft.photos, ...files] })}
                 onRemove={(i) => onChange({ ...draft, photos: draft.photos.filter((_, idx) => idx !== i) })}
               />
@@ -1142,7 +1146,7 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
           <div className="space-y-3 py-2">
             {!canConfirm && (
               <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2">
-                <AlertTriangle size={12} />Back Charge requires at least 2 photos — go back and add them.
+                <AlertTriangle size={12} />{t("activitySheet.bcPhotosWarning")}
               </div>
             )}
             {draft.workerNames.length > 0 && (
@@ -1157,7 +1161,7 @@ function ActivitySheet({ open, workers, draft, onChange, onClose, onConfirm }: {
             )}
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-              <input type="text" placeholder="Search crew…" value={search} onChange={(e) => setSearch(e.target.value)}
+              <input type="text" placeholder={t("activitySheet.searchCrew")} value={search} onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-card border border-foreground/25 rounded-lg pl-9 pr-8 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors" />
               {search && <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"><X size={14} /></button>}
             </div>
@@ -1189,6 +1193,7 @@ function ActivityConfirmModal({ open, activityNumber, onAddAnother, onContinue }
   onAddAnother: () => void;
   onContinue: () => void;
 }) {
+  const { t } = useI18n();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center px-6">
@@ -1198,21 +1203,21 @@ function ActivityConfirmModal({ open, activityNumber, onAddAnother, onContinue }
           <Check size={28} className="text-emerald-500" />
         </div>
         <div className="text-center">
-          <p className="text-base font-semibold text-foreground">Activity {activityNumber} added</p>
-          <p className="text-sm text-muted-foreground mt-1">What would you like to do next?</p>
+          <p className="text-base font-semibold text-foreground">{t("activityConfirm.title", { n: activityNumber })}</p>
+          <p className="text-sm text-muted-foreground mt-1">{t("activityConfirm.subtitle")}</p>
         </div>
         <div className="flex flex-col gap-2 w-full">
           <button
             onClick={onAddAnother}
             className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
-            <Plus size={16} />Add Another Activity
+            <Plus size={16} />{t("activityConfirm.addAnother")}
           </button>
           <button
             onClick={onContinue}
             className="w-full border border-border text-foreground font-medium py-3 rounded-lg text-sm hover:bg-accent transition-colors"
           >
-            Continue to Next Fields
+            {t("activityConfirm.continue")}
           </button>
         </div>
       </div>
@@ -1228,6 +1233,7 @@ function SubmitModal({ open, logId, closeEnabled, onClose }: {
   closeEnabled: boolean;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   if (!open) return null;
 
   function downloadPdf() {
@@ -1252,8 +1258,10 @@ function SubmitModal({ open, logId, closeEnabled, onClose }: {
         </div>
 
         <div>
-          <p className="text-base font-semibold text-foreground">Daily log registered!</p>
-          <p className="text-sm text-muted-foreground mt-1">Download the PDF and send it in <span className="font-semibold text-foreground">Buildertrend</span> before closing.</p>
+          <p className="text-base font-semibold text-foreground">{t("submitModal.registered")}</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {t("submitModal.subtitleBefore")}<span className="font-semibold text-foreground">Buildertrend</span>{t("submitModal.subtitleAfter")}
+          </p>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -1261,13 +1269,13 @@ function SubmitModal({ open, logId, closeEnabled, onClose }: {
             onClick={downloadPdf}
             className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
-            <Download size={16} />Download PDF
+            <Download size={16} />{t("submitModal.download")}
           </button>
         </div>
 
         {!closeEnabled && (
           <p className="text-xs text-muted-foreground text-center">
-            You can close this window in a moment…
+            {t("submitModal.closing")}
           </p>
         )}
       </div>

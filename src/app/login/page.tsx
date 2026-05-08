@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Sun, Moon, ChevronLeft, Loader2, Crown, Terminal, HardHat, Search, X } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 type UserRole = "admin" | "dev" | "supervisor";
 interface LoginUser { id: string; name: string; email: string; role: UserRole; }
@@ -34,6 +36,7 @@ export default function LoginPage() {
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
   const router  = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
+  const { t } = useI18n();
 
   useEffect(() => {
     setMounted(true);
@@ -41,12 +44,10 @@ export default function LoginPage() {
       .then((r) => r.json())
       .then((data: LoginUser[]) => {
         setUsers(data);
-        // Restore saved user and skip to step 2
         try {
           const saved = localStorage.getItem(LS_KEY);
           if (saved) {
             const parsed: LoginUser = JSON.parse(saved);
-            // Verify still in list (active)
             const match = data.find((u) => u.id === parsed.id);
             if (match) { setSelected(match); setTimeout(() => inputs.current[0]?.focus(), 80); }
           }
@@ -66,11 +67,10 @@ export default function LoginPage() {
     setSelected(null);
     setPin(["", "", "", "", "", ""]);
     setError("");
-    // don't clear localStorage — keeps memory for next visit
   }
 
   function handleChange(index: number, raw: string) {
-    const digit = raw.replace(/\D/g, "").slice(-1); // extract last real digit typed
+    const digit = raw.replace(/\D/g, "").slice(-1);
     const next = [...pin];
     next[index] = digit;
     setPin(next);
@@ -97,7 +97,7 @@ export default function LoginPage() {
       if (!res.ok) {
         setPin(["", "", "", "", "", ""]);
         setTimeout(() => inputs.current[0]?.focus(), 50);
-        setError("Wrong PIN. Try again.");
+        setError(t("login.wrongPin"));
         return;
       }
       router.push("/dashboard");
@@ -109,8 +109,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6">
 
-      {/* Theme toggle */}
-      <div className="fixed top-3 right-3">
+      {/* Theme toggle + language switcher */}
+      <div className="fixed top-3 right-3 flex items-center gap-1">
+        <LanguageSwitcher />
         <button onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
           className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
           {mounted && (resolvedTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />)}
@@ -130,11 +131,10 @@ export default function LoginPage() {
         <div className="w-full bg-card border border-border/40 rounded-xl p-8 flex flex-col items-center gap-6">
 
           {!selected ? (
-            /* ── Step 1: pick user ── */
             <>
               <div className="text-center">
-                <p className="text-base font-semibold text-foreground">Who are you?</p>
-                <p className="text-xs text-muted-foreground mt-1">Select your name to continue</p>
+                <p className="text-base font-semibold text-foreground">{t("login.whoAreYou")}</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("login.selectName")}</p>
               </div>
               {users.length > 0 && (
                 <div className="relative w-full">
@@ -143,7 +143,7 @@ export default function LoginPage() {
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search…"
+                    placeholder={t("common.search")}
                     className="w-full bg-background border border-border rounded-lg pl-8 pr-8 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                   />
                   {search && (
@@ -172,7 +172,9 @@ export default function LoginPage() {
 
                   if (users.length > 0 && filtered.length === 0) {
                     return (
-                      <p className="text-sm text-muted-foreground text-center py-4">No match for "{search}"</p>
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        {t("login.noMatch", { search })}
+                      </p>
                     );
                   }
 
@@ -193,10 +195,8 @@ export default function LoginPage() {
                   });
                 })()}
               </div>
-
             </>
           ) : (
-            /* ── Step 2: PIN ── */
             <>
               <div className="w-full flex items-center gap-2">
                 <button onClick={back} className="p-1 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -214,8 +214,8 @@ export default function LoginPage() {
               </div>
 
               <div className="text-center">
-                <p className="text-base font-semibold text-foreground">Enter your PIN</p>
-                <p className="text-xs text-muted-foreground mt-1">6-digit access code</p>
+                <p className="text-base font-semibold text-foreground">{t("login.enterPin")}</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("login.sixDigit")}</p>
               </div>
 
               <div className="flex gap-2 w-full">
@@ -233,7 +233,7 @@ export default function LoginPage() {
               {error && <p className="text-xs text-destructive text-center">{error}</p>}
               {loading && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 size={14} className="animate-spin" /> Verifying…
+                  <Loader2 size={14} className="animate-spin" /> {t("login.verifying")}
                 </div>
               )}
             </>

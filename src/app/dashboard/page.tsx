@@ -8,6 +8,8 @@ import {
   CalendarDays, Layers, RefreshCw, History, ShieldCheck, Loader2,
   Download,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 interface LogSummary {
   _id: string;
@@ -15,13 +17,6 @@ interface LogSummary {
   status: string;
   workers: { name: string }[];
   activities: unknown[];
-}
-
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
 }
 
 function localToday() {
@@ -38,6 +33,7 @@ function fmtDate(iso: string) {
 export default function DashboardPage() {
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
+  const { t } = useI18n();
   const [name, setName]         = useState("");
   const [role, setRole]         = useState("");
   const [logs, setLogs]         = useState<LogSummary[] | null>(null);
@@ -49,6 +45,13 @@ export default function DashboardPage() {
     fetch("/api/me").then((r) => r.ok ? r.json() : {} as { name?: string; role?: string }).then((d) => { setName(d.name ?? ""); setRole(d.role ?? ""); });
     fetch("/api/daily-log").then((r) => r.ok ? r.json() : []).then(setLogs);
   }, []);
+
+  function greeting() {
+    const h = new Date().getHours();
+    if (h < 12) return t("dashboard.goodMorning");
+    if (h < 17) return t("dashboard.goodAfternoon");
+    return t("dashboard.goodEvening");
+  }
 
   const todayLog = logs?.find((l) => l.date === today) ?? (logs === null ? undefined : null);
 
@@ -101,6 +104,7 @@ export default function DashboardPage() {
           >
             <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
           </button>
+          <LanguageSwitcher />
           <button
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -127,11 +131,11 @@ export default function DashboardPage() {
         <div className="bg-card border border-border/40 rounded-xl p-5 space-y-4 shrink-0">
           <div className="flex items-center gap-1.5">
             <CalendarDays size={13} className="text-muted-foreground" />
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Today</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("dashboard.today")}</p>
           </div>
 
           {todayLog === undefined ? (
-            <p className="text-sm text-muted-foreground">Checking…</p>
+            <p className="text-sm text-muted-foreground">{t("dashboard.checking")}</p>
           ) : todayLog !== null ? (
             <div
               className="flex items-center gap-3 cursor-pointer"
@@ -139,22 +143,22 @@ export default function DashboardPage() {
             >
               <CheckCircle2 size={20} className="text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground">Daily log submitted</p>
-                <p className="text-xs text-muted-foreground">Tap to view details</p>
+                <p className="text-sm font-medium text-foreground">{t("dashboard.logSubmitted")}</p>
+                <p className="text-xs text-muted-foreground">{t("dashboard.tapToView")}</p>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <Clock size={20} className="text-muted-foreground shrink-0" />
-                <p className="text-sm text-muted-foreground">No daily log submitted yet.</p>
+                <p className="text-sm text-muted-foreground">{t("dashboard.noLogYet")}</p>
               </div>
               <button
                 onClick={() => router.push("/log/new")}
                 className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
               >
                 <ClipboardList size={16} />
-                Fill Daily Log
+                {t("dashboard.fillDailyLog")}
               </button>
             </div>
           )}
@@ -165,17 +169,17 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between shrink-0">
             <div className="flex items-center gap-1.5">
               <History size={13} className="text-muted-foreground" />
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">My Logs</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("dashboard.myLogs")}</p>
             </div>
-            <p className="text-[10px] text-muted-foreground">Tap to view details</p>
+            <p className="text-[10px] text-muted-foreground">{t("dashboard.tapForDetails")}</p>
           </div>
 
           {logs === null ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 size={14} className="animate-spin" /> Loading…
+              <Loader2 size={14} className="animate-spin" /> {t("common.loading")}
             </div>
           ) : logs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No logs yet.</p>
+            <p className="text-sm text-muted-foreground">{t("dashboard.noLogs")}</p>
           ) : (
             <div className="overflow-y-auto flex-1 space-y-2 pr-0.5">
               {logs.map((log) => (
@@ -187,7 +191,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2.5 min-w-0">
                     <CalendarDays size={14} className="text-muted-foreground shrink-0" />
                     <p className="text-sm font-medium text-foreground truncate">
-                      {log.date === today ? "Today" : fmtDate(log.date)}
+                      {log.date === today ? t("dashboard.today") : fmtDate(log.date)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -219,7 +223,7 @@ export default function DashboardPage() {
             className="w-full flex items-center justify-center gap-2 border border-primary/30 [background-color:var(--primary-tint)] rounded-xl py-3 text-xs font-semibold text-primary hover:[background-color:var(--primary-tint-hover)] transition-colors shrink-0"
           >
             <ShieldCheck size={14} />
-            Admin View
+            {t("dashboard.adminView")}
           </button>
         )}
       </main>

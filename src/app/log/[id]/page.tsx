@@ -7,6 +7,8 @@ import {
   Download, Layers, Camera, Wrench, Package, AlertTriangle,
   CalendarClock, MessageSquare, HardHat, Users, X, Pencil, Building2,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,10 +56,10 @@ interface PhotoDoc {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WORK_TYPE_CONFIG = {
-  normal:        { label: "Normal Labor", text: "text-blue-500",    bg: "bg-blue-500/10",    border: "border-blue-500/30" },
-  "back-charge": { label: "Back Charge",  text: "text-amber-500",   bg: "bg-amber-500/10",   border: "border-amber-500/30" },
-  extra:         { label: "Extra",        text: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/30" },
-  warranty:      { label: "Warranty",     text: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
+  normal:        { labelKey: "workType.normal",      text: "text-blue-500",    bg: "bg-blue-500/10",    border: "border-blue-500/30" },
+  "back-charge": { labelKey: "workType.backCharge",  text: "text-amber-500",   bg: "bg-amber-500/10",   border: "border-amber-500/30" },
+  extra:         { labelKey: "workType.extra",        text: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/30" },
+  warranty:      { labelKey: "workType.warranty",     text: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
 } as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,11 +94,12 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
 }
 
 function NoteRow({ label, value, na }: { label: string; value: string; na: boolean }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-1">
       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
       {na ? (
-        <p className="text-sm text-muted-foreground italic">Not applicable</p>
+        <p className="text-sm text-muted-foreground italic">{t("common.notApplicable")}</p>
       ) : value ? (
         <p className="text-sm text-foreground leading-relaxed">{value}</p>
       ) : (
@@ -112,6 +115,7 @@ export default function LogDetailPage() {
   const router  = useRouter();
   const params  = useParams();
   const id      = params.id as string;
+  const { t }   = useI18n();
 
   const [log,        setLog]      = useState<LogDetail | null>(null);
   const [photos,     setPhotos]   = useState<PhotoDoc[]>([]);
@@ -132,8 +136,9 @@ export default function LogDetailPage() {
         setPhotos(Array.isArray(photosData) ? photosData : []);
         setIsOwner(me.userId === logData.supervisorId);
       })
-      .catch(() => setError("Failed to load log."))
+      .catch(() => setError(t("logDetail.failedLoad")))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const exportPDF = useCallback(async () => {
@@ -165,8 +170,8 @@ export default function LogDetailPage() {
   if (error || !log) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-4">
-        <p className="text-sm text-destructive">{error || "Log not found."}</p>
-        <button onClick={() => router.back()} className="text-xs text-primary hover:underline">Go back</button>
+        <p className="text-sm text-destructive">{error || t("logDetail.failedLoad")}</p>
+        <button onClick={() => router.back()} className="text-xs text-primary hover:underline">{t("logDetail.goBack")}</button>
       </div>
     );
   }
@@ -181,7 +186,8 @@ export default function LogDetailPage() {
         <button onClick={() => router.back()} className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
           <ChevronLeft size={20} />
         </button>
-        <p className="text-sm font-semibold text-foreground flex-1">Daily Log</p>
+        <p className="text-sm font-semibold text-foreground flex-1">{t("logDetail.title")}</p>
+        <LanguageSwitcher />
         {isOwner && log.date === (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })() && (
           <button
             onClick={() => router.push(`/log/${id}/edit`)}
@@ -227,7 +233,7 @@ export default function LogDetailPage() {
             <div className="pt-2 border-t border-border/40">
               <div className="flex items-center gap-1.5 mb-2">
                 <Users size={12} className="text-muted-foreground" />
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Workers on site</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{t("logDetail.workersOnSite")}</p>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {log.workers.map((w, i) => (
@@ -241,7 +247,7 @@ export default function LogDetailPage() {
         {/* Activities */}
         {log.activities.length > 0 && (
           <div>
-            <SectionLabel icon={Layers} label="Activities" />
+            <SectionLabel icon={Layers} label={t("logDetail.activities")} />
             <div className="space-y-3">
               {log.activities.map((act, i) => {
                 const cfg = WORK_TYPE_CONFIG[act.workType] ?? WORK_TYPE_CONFIG.normal;
@@ -249,8 +255,8 @@ export default function LogDetailPage() {
                 return (
                   <div key={i} className={`bg-card border ${cfg.border} rounded-xl overflow-hidden`}>
                     <div className={`${cfg.bg} px-4 py-2 flex items-center gap-2`}>
-                      <span className={`text-[11px] font-bold uppercase tracking-wider ${cfg.text}`}>{cfg.label}</span>
-                      <span className="text-[11px] text-muted-foreground">Activity {i + 1}</span>
+                      <span className={`text-[11px] font-bold uppercase tracking-wider ${cfg.text}`}>{t(cfg.labelKey)}</span>
+                      <span className="text-[11px] text-muted-foreground">{t("logDetail.activity")} {i + 1}</span>
                     </div>
                     <div className="px-4 py-3 space-y-2">
                       <p className="text-sm text-foreground leading-relaxed">{act.description}</p>
@@ -258,7 +264,7 @@ export default function LogDetailPage() {
                       {act.workType === "back-charge" && act.chargeableSub && (
                         <div className="flex items-center gap-1.5">
                           <Building2 size={11} className="text-amber-500 shrink-0" />
-                          <p className="text-xs text-amber-600 dark:text-amber-400"><span className="font-semibold">Chargeable to:</span> {act.chargeableSub}</p>
+                          <p className="text-xs text-amber-600 dark:text-amber-400"><span className="font-semibold">{t("logDetail.chargeableTo")}</span> {act.chargeableSub}</p>
                         </div>
                       )}
                       {act.workerNames.length > 0 && (
@@ -288,16 +294,16 @@ export default function LogDetailPage() {
 
         {/* Notes */}
         <div>
-          <SectionLabel icon={MessageSquare} label="Site Notes" />
+          <SectionLabel icon={MessageSquare} label={t("logDetail.siteNotes")} />
           <div className="bg-card border border-border/40 rounded-xl p-4 space-y-4">
             {/* Machines */}
             <div className="space-y-2">
               <div className="flex items-center gap-1.5 mb-1">
                 <Wrench size={12} className="text-muted-foreground" />
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Machines & Equipment</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{t("logDetail.machinesEquipment")}</p>
               </div>
               {log.notes.machinesNA ? (
-                <p className="text-sm text-muted-foreground italic">Not applicable</p>
+                <p className="text-sm text-muted-foreground italic">{t("common.notApplicable")}</p>
               ) : log.notes.machineEntries?.length > 0 ? (
                 <div className="space-y-1.5">
                   {log.notes.machineEntries.map((m, i) => (
@@ -313,10 +319,10 @@ export default function LogDetailPage() {
             </div>
 
             <div className="border-t border-border/40 pt-4 space-y-4">
-              <NoteRow label="Materials Delivered"  value={log.notes.materials}       na={log.notes.materialsNA} />
-              <NoteRow label="Problems / Delays"    value={log.notes.problems}        na={log.notes.problemsNA} />
-              <NoteRow label="Plan for Next Day"    value={log.notes.nextDayPlan}     na={log.notes.nextDayPlanNA} />
-              <NoteRow label="Notes for Supervisor" value={log.notes.supervisorNotes} na={log.notes.supervisorNotesNA} />
+              <NoteRow label={t("logDetail.materialsDelivered")} value={log.notes.materials}       na={log.notes.materialsNA} />
+              <NoteRow label={t("logDetail.problemsDelays")}    value={log.notes.problems}        na={log.notes.problemsNA} />
+              <NoteRow label={t("logDetail.nextDayPlan")}       value={log.notes.nextDayPlan}     na={log.notes.nextDayPlanNA} />
+              <NoteRow label={t("logDetail.supervisorNotes")}   value={log.notes.supervisorNotes} na={log.notes.supervisorNotesNA} />
             </div>
           </div>
         </div>
@@ -324,7 +330,7 @@ export default function LogDetailPage() {
         {/* General Photos */}
         {generalPhotos.length > 0 && (
           <div>
-            <SectionLabel icon={Camera} label={`General Photos (${generalPhotos.length})`} />
+            <SectionLabel icon={Camera} label={t("logDetail.generalPhotos", { n: generalPhotos.length })} />
             <div className="grid grid-cols-3 gap-2">
               {generalPhotos.map((p) => (
                 <button key={p._id} onClick={() => setLightbox(photoUrl(p.storageKey))} className="aspect-square rounded-xl overflow-hidden bg-muted">

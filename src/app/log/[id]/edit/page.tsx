@@ -9,6 +9,8 @@ import {
   Package, AlertTriangle, CalendarClock, MessageSquare, MapPin,
   Loader2, Ban, Building2, Download,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,10 +58,10 @@ interface QBTJobcode { id: number; name: string; has_children: boolean; parent_i
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WORK_TYPE_CONFIG = {
-  normal:        { label: "Normal Labor", Icon: Hammer,      text: "text-blue-500",    bg: "bg-blue-500/10",    border: "border-blue-500/30" },
-  "back-charge": { label: "Back Charge",  Icon: Receipt,     text: "text-amber-500",   bg: "bg-amber-500/10",   border: "border-amber-500/30" },
-  extra:         { label: "Extra",        Icon: Zap,         text: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/30" },
-  warranty:      { label: "Warranty",     Icon: ShieldCheck, text: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
+  normal:        { labelKey: "workType.normal",     Icon: Hammer,      text: "text-blue-500",    bg: "bg-blue-500/10",    border: "border-blue-500/30" },
+  "back-charge": { labelKey: "workType.backCharge", Icon: Receipt,     text: "text-amber-500",   bg: "bg-amber-500/10",   border: "border-amber-500/30" },
+  extra:         { labelKey: "workType.extra",      Icon: Zap,         text: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/30" },
+  warranty:      { labelKey: "workType.warranty",   Icon: ShieldCheck, text: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
 } as const;
 type WorkTypeKey = keyof typeof WORK_TYPE_CONFIG;
 
@@ -78,6 +80,7 @@ export default function EditLogPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const { t } = useI18n();
 
   const [loading,   setLoading]  = useState(true);
   const [saving,    setSaving]   = useState(false);
@@ -96,18 +99,16 @@ export default function EditLogPage() {
   const [editActIdx,  setEditActIdx]  = useState<number | null>(null);
   const [draftAct,    setDraftAct]    = useState<Activity>({ ...EMPTY_ACTIVITY });
 
-  // Activity confirm modal
   const [actConfirmModal, setActConfirmModal]               = useState(false);
   const [confirmedActivityCount, setConfirmedActivityCount] = useState(0);
 
-  // Save modal
-  const [saveModal, setSaveModal]                       = useState(false);
+  const [saveModal, setSaveModal]                         = useState(false);
   const [saveModalCloseEnabled, setSaveModalCloseEnabled] = useState(false);
 
-  const [locSheet,       setLocSheet]       = useState(false);
-  const [locPath,        setLocPath]        = useState<QBTJobcode[]>([]);
-  const [locCandidates,  setLocCandidates]  = useState<QBTJobcode[]>([]);
-  const [locLoading,     setLocLoading]     = useState(false);
+  const [locSheet,      setLocSheet]      = useState(false);
+  const [locPath,       setLocPath]       = useState<QBTJobcode[]>([]);
+  const [locCandidates, setLocCandidates] = useState<QBTJobcode[]>([]);
+  const [locLoading,    setLocLoading]    = useState(false);
 
   useEffect(() => {
     const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
@@ -139,8 +140,6 @@ export default function EditLogPage() {
     }).catch(() => router.back()).finally(() => setLoading(false));
   }, [id, router]);
 
-  // ── Activity handlers ───────────────────────────────────────────────────────
-
   function openAddActivity()  { setDraftAct({ ...EMPTY_ACTIVITY }); setEditActIdx(null); setActSheet(true); }
   function openEditActivity(i: number) { setDraftAct({ ...form.activities[i] }); setEditActIdx(i); setActSheet(true); }
 
@@ -154,17 +153,12 @@ export default function EditLogPage() {
       return { ...f, activities: acts };
     });
     setActSheet(false);
-    if (!isEdit) {
-      setConfirmedActivityCount(newCount);
-      setActConfirmModal(true);
-    }
+    if (!isEdit) { setConfirmedActivityCount(newCount); setActConfirmModal(true); }
   }
 
   function removeActivity(i: number) {
     setForm((f) => ({ ...f, activities: f.activities.filter((_, idx) => idx !== i) }));
   }
-
-  // ── Location handlers ───────────────────────────────────────────────────────
 
   async function fetchJobcodes(parentId: number) {
     const data = await fetch(`/api/qbt/jobcodes?parentId=${parentId}`).then((r) => r.json()).catch(() => []);
@@ -201,22 +195,18 @@ export default function EditLogPage() {
     setLocLoading(false);
   }
 
-  // ── Existing photo delete ───────────────────────────────────────────────────
-
   async function deleteExistingPhoto(photo: ExistingPhoto) {
     await fetch(`/api/daily-log/${id}/photos?photoId=${photo._id}`, { method: "DELETE" });
     setExistingGeneralPhotos((prev) => prev.filter((p) => p._id !== photo._id));
   }
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
-
   async function handleSave() {
-    if (!form.locationId) { setSaveError("Select a jobsite before saving."); return; }
-    if (form.activities.length === 0) { setSaveError("Add at least one activity before saving."); return; }
+    if (!form.locationId) { setSaveError(t("logForm.selectJobsiteSave")); return; }
+    if (form.activities.length === 0) { setSaveError(t("logForm.addActivityFirstSave")); return; }
     const bcIdx = form.activities.findIndex((act, i) =>
       act.workType === "back-charge" && (existingActivityPhotoCounts[i] ?? 0) + act.photos.length < 2
     );
-    if (bcIdx !== -1) { setSaveError(`Activity ${bcIdx + 1} (Back Charge) requires at least 2 photos.`); return; }
+    if (bcIdx !== -1) { setSaveError(t("logForm.bcPhotosRequired", { n: bcIdx + 1 })); return; }
     setSaving(true); setSaveError("");
     try {
       const workers = [...new Set(form.activities.flatMap((a) => a.workerNames))].map((name) => {
@@ -274,8 +264,6 @@ export default function EditLogPage() {
     }
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -291,26 +279,25 @@ export default function EditLogPage() {
           <button onClick={() => router.back()} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
             <ChevronLeft size={20} />
           </button>
-          <p className="text-sm font-semibold text-foreground flex-1">Edit Daily Log</p>
+          <p className="text-sm font-semibold text-foreground flex-1">{t("logForm.editTitle")}</p>
+          <LanguageSwitcher />
         </header>
 
         <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 pb-28 space-y-6">
 
-          {/* Date (locked) */}
-          <PageSection title="Date" icon={CalendarDays}>
+          <PageSection title={t("logForm.date")} icon={CalendarDays}>
             <div className="flex items-center gap-2 bg-muted/40 border border-border/40 rounded-lg px-3 py-3">
               <CalendarDays size={16} className="text-muted-foreground shrink-0" />
               <span className="text-sm text-muted-foreground">{fmtDate(logDate)}</span>
             </div>
           </PageSection>
 
-          {/* Location */}
-          <PageSection title="Jobsite" icon={MapPin}>
+          <PageSection title={t("logForm.jobsite")} icon={MapPin}>
             {form.locationPath.length > 0 ? (
               <div className="flex items-center gap-2 bg-card border border-border/40 rounded-xl px-4 py-3">
                 <MapPin size={14} className="text-primary shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-0.5">Lot / Building</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">{t("logForm.lotBuilding")}</p>
                   <p className="text-sm font-medium text-foreground">{form.locationPath.join(" › ")}</p>
                 </div>
                 <button onClick={openLocSheet} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
@@ -319,13 +306,12 @@ export default function EditLogPage() {
               </div>
             ) : (
               <button onClick={openLocSheet} className="w-full border-2 border-dashed border-border rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-                <MapPin size={15} />Select Jobsite
+                <MapPin size={15} />{t("logForm.selectJobsiteLabel")}
               </button>
             )}
           </PageSection>
 
-          {/* Activities */}
-          <PageSection title="Premium Framing" icon={HardHatIcon}>
+          <PageSection title={t("logForm.premiumFraming")} icon={HardHatIcon}>
             <div className="space-y-2">
               {form.activities.map((act, i) => (
                 <ActivityCard
@@ -335,12 +321,11 @@ export default function EditLogPage() {
                   onRemove={() => removeActivity(i)}
                 />
               ))}
-              <AddItemButton onClick={openAddActivity} label="Add Activity" />
+              <AddItemButton onClick={openAddActivity} label={t("logForm.addActivity")} />
             </div>
           </PageSection>
 
-          {/* Subcontractors */}
-          <PageSection title="Subcontractors" icon={Building2}>
+          <PageSection title={t("logForm.subcontractors")} icon={Building2}>
             <SubcontractorSection
               subcontractors={form.subcontractors}
               onChange={(subs) => setForm((f) => ({ ...f, subcontractors: subs }))}
@@ -349,17 +334,16 @@ export default function EditLogPage() {
 
           <hr className="border-border/40 -mx-4" />
 
-          {/* Notes */}
           <div className="space-y-4">
             <MachinesSection notes={form.notes} onChange={(n) => setForm((f) => ({ ...f, notes: n }))} />
             {([
-              { key: "materials"       as const, naKey: "materialsNA"       as const, Icon: Package,       label: "Materials Delivered",  placeholder: "List materials delivered today…", rows: 2 },
-              { key: "problems"        as const, naKey: "problemsNA"        as const, Icon: AlertTriangle, label: "Problems / Delays",    placeholder: "Any issues or delays?", rows: 2 },
-              { key: "nextDayPlan"     as const, naKey: "nextDayPlanNA"     as const, Icon: CalendarClock, label: "Plan for Next Day",    placeholder: "What's the plan for tomorrow?", rows: 2 },
-              { key: "supervisorNotes" as const, naKey: "supervisorNotesNA" as const, Icon: MessageSquare, label: "Notes for Supervisor", placeholder: "Any observations for the supervisor…", rows: 2 },
+              { key: "materials"       as const, naKey: "materialsNA"       as const, Icon: Package,       labelKey: "logForm.materials",      placeholderKey: "logForm.listMaterials",  rows: 2 },
+              { key: "problems"        as const, naKey: "problemsNA"        as const, Icon: AlertTriangle, labelKey: "logForm.problems",       placeholderKey: "logForm.anyIssues",      rows: 2 },
+              { key: "nextDayPlan"     as const, naKey: "nextDayPlanNA"     as const, Icon: CalendarClock, labelKey: "logForm.nextDay",        placeholderKey: "logForm.tomorrowPlan",   rows: 2 },
+              { key: "supervisorNotes" as const, naKey: "supervisorNotesNA" as const, Icon: MessageSquare, labelKey: "logForm.supervisorNotes", placeholderKey: "logForm.supervisorObs", rows: 2 },
             ] as const).map((f) => (
               <NoteFieldWithNA
-                key={f.key} label={f.label} placeholder={f.placeholder} rows={f.rows} Icon={f.Icon}
+                key={f.key} label={t(f.labelKey)} placeholder={t(f.placeholderKey)} rows={f.rows} Icon={f.Icon}
                 value={form.notes[f.key]} isNA={form.notes[f.naKey]}
                 onValueChange={(v) => setForm((s) => ({ ...s, notes: { ...s.notes, [f.key]: v } }))}
                 onNAChange={(na) => setForm((s) => ({ ...s, notes: { ...s.notes, [f.naKey]: na, ...(na ? { [f.key]: "" } : {}) } }))}
@@ -367,16 +351,14 @@ export default function EditLogPage() {
             ))}
           </div>
 
-          {/* General Photos */}
-          <PageSection title="General Photos" icon={Camera}>
+          <PageSection title={t("logForm.generalPhotos")} icon={Camera}>
             <div className="space-y-3">
               {(existingGeneralPhotos.length + form.newGeneralPhotos.length) < 5 && (
                 <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2">
                   <AlertTriangle size={12} className="shrink-0" />
-                  At least 5 general photos are required ({existingGeneralPhotos.length + form.newGeneralPhotos.length}/5)
+                  {t("logForm.generalPhotosWarningEdit", { n: existingGeneralPhotos.length + form.newGeneralPhotos.length })}
                 </div>
               )}
-              {/* Existing photos */}
               {existingGeneralPhotos.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
                   {existingGeneralPhotos.map((p) => (
@@ -393,7 +375,6 @@ export default function EditLogPage() {
                   ))}
                 </div>
               )}
-              {/* New photos */}
               <PhotoSection
                 photos={form.newGeneralPhotos}
                 onAdd={(files) => setForm((f) => ({ ...f, newGeneralPhotos: [...f.newGeneralPhotos, ...files] }))}
@@ -416,12 +397,11 @@ export default function EditLogPage() {
             disabled={saving}
             className="w-full max-w-lg mx-auto block bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
-            {saving ? "Saving…" : "Save Changes"}
+            {saving ? t("logForm.saving") : t("logForm.save")}
           </button>
         </div>
       </div>
 
-      {/* Activity confirm modal */}
       <ActivityConfirmModal
         open={actConfirmModal}
         activityNumber={confirmedActivityCount}
@@ -429,7 +409,6 @@ export default function EditLogPage() {
         onContinue={() => setActConfirmModal(false)}
       />
 
-      {/* Save success modal */}
       <SaveModal
         open={saveModal}
         logId={id}
@@ -485,6 +464,7 @@ function NoteFieldWithNA({ label, placeholder, rows, Icon, value, isNA, onValueC
   label: string; placeholder: string; rows: number; Icon: React.ElementType;
   value: string; isNA: boolean; onValueChange: (v: string) => void; onNAChange: (na: boolean) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -498,11 +478,11 @@ function NoteFieldWithNA({ label, placeholder, rows, Icon, value, isNA, onValueC
             isNA ? "bg-muted/60 text-muted-foreground border-border" : "bg-background text-muted-foreground/60 border-border/40 hover:border-border"
           }`}
         >
-          <Ban size={10} className={isNA ? "text-primary" : "text-muted-foreground/40"} />N/A
+          <Ban size={10} className={isNA ? "text-primary" : "text-muted-foreground/40"} />{t("common.na")}
         </button>
       </div>
       {isNA ? (
-        <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">Not applicable</div>
+        <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">{t("common.notApplicable")}</div>
       ) : (
         <textarea
           value={value} onChange={(e) => onValueChange(e.target.value)} rows={rows} placeholder={placeholder}
@@ -514,7 +494,8 @@ function NoteFieldWithNA({ label, placeholder, rows, Icon, value, isNA, onValueC
 }
 
 function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: FormNotes) => void }) {
-  const [adding, setAdding]       = useState(false);
+  const { t } = useI18n();
+  const [adding, setAdding]         = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftUnit, setDraftUnit]   = useState("");
 
@@ -528,7 +509,7 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-          <Wrench size={12} />Machines &amp; Equipment on Site
+          <Wrench size={12} />{t("logForm.machines")}
         </label>
         <button
           type="button"
@@ -537,18 +518,18 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
             notes.machinesNA ? "bg-muted/60 text-muted-foreground border-border" : "bg-background text-muted-foreground/60 border-border/40 hover:border-border"
           }`}
         >
-          <Ban size={10} className={notes.machinesNA ? "text-primary" : "text-muted-foreground/40"} />N/A
+          <Ban size={10} className={notes.machinesNA ? "text-primary" : "text-muted-foreground/40"} />{t("common.na")}
         </button>
       </div>
       {notes.machinesNA ? (
-        <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">Not applicable</div>
+        <div className="text-xs text-muted-foreground italic bg-muted/30 border border-border/30 rounded-lg px-3 py-2.5">{t("common.notApplicable")}</div>
       ) : (
         <div className="space-y-2">
           {notes.machineEntries.map((m, i) => (
             <div key={i} className="flex items-center gap-2 bg-card border border-border/40 rounded-lg px-3 py-2.5">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{m.title}</p>
-                {m.unit && <p className="text-xs text-primary font-mono mt-0.5">Unit: {m.unit}</p>}
+                {m.unit && <p className="text-xs text-primary font-mono mt-0.5">{t("common.unit")} {m.unit}</p>}
               </div>
               <button onClick={() => onChange({ ...notes, machineEntries: notes.machineEntries.filter((_, idx) => idx !== i) })} className="p-1 text-muted-foreground hover:text-destructive transition-colors shrink-0">
                 <X size={13} />
@@ -557,22 +538,22 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
           ))}
           {adding ? (
             <div className="bg-background border border-primary/20 rounded-xl p-3 space-y-2">
-              <input autoFocus value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} placeholder="Machine / Equipment name…"
+              <input autoFocus value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} placeholder={t("logForm.machineName")}
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
                 onKeyDown={(e) => e.key === "Enter" && document.getElementById("editUnitInput")?.focus()}
               />
-              <input id="editUnitInput" value={draftUnit} onChange={(e) => setDraftUnit(e.target.value)} placeholder="Unit / TAG — optional"
+              <input id="editUnitInput" value={draftUnit} onChange={(e) => setDraftUnit(e.target.value)} placeholder={t("logForm.machineUnit")}
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
                 onKeyDown={(e) => { if (e.key === "Enter") addMachine(); }}
               />
               <div className="flex gap-2">
-                <button onClick={() => { setAdding(false); setDraftTitle(""); setDraftUnit(""); }} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">Cancel</button>
-                <button onClick={addMachine} disabled={!draftTitle.trim()} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold disabled:opacity-40 transition-opacity">Add</button>
+                <button onClick={() => { setAdding(false); setDraftTitle(""); setDraftUnit(""); }} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">{t("common.cancel")}</button>
+                <button onClick={addMachine} disabled={!draftTitle.trim()} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold disabled:opacity-40 transition-opacity">{t("common.add")}</button>
               </div>
             </div>
           ) : (
             <button onClick={() => setAdding(true)} className="w-full border-2 border-dashed border-border rounded-xl py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-              <Plus size={14} />Add Machine
+              <Plus size={14} />{t("logForm.addMachine")}
             </button>
           )}
         </div>
@@ -584,7 +565,8 @@ function MachinesSection({ notes, onChange }: { notes: FormNotes; onChange: (n: 
 function ActivityCard({ activity, index, existingPhotoCount, onEdit, onRemove }: {
   activity: Activity; index: number; existingPhotoCount: number; onEdit: () => void; onRemove: () => void;
 }) {
-  const fmt = (t: string) => { const [h, m] = t.split(":").map(Number); return `${(h % 12) || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
+  const { t } = useI18n();
+  const fmt = (time: string) => { const [h, m] = time.split(":").map(Number); return `${(h % 12) || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
   const cfg = WORK_TYPE_CONFIG[activity.workType];
   const totalPhotos = existingPhotoCount + activity.photos.length;
   const needsPhotos = activity.workType === "back-charge" && totalPhotos < 2;
@@ -597,8 +579,8 @@ function ActivityCard({ activity, index, existingPhotoCount, onEdit, onRemove }:
             <cfg.Icon size={14} className={cfg.text} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-foreground">Activity {index + 1}</p>
-            <p className={`text-[10px] font-medium ${cfg.text}`}>{cfg.label}</p>
+            <p className="text-xs font-semibold text-foreground">{t("logForm.activity", { n: index + 1 })}</p>
+            <p className={`text-[10px] font-medium ${cfg.text}`}>{t(cfg.labelKey)}</p>
           </div>
         </div>
         <div className="flex gap-0.5 shrink-0">
@@ -624,7 +606,7 @@ function ActivityCard({ activity, index, existingPhotoCount, onEdit, onRemove }:
       )}
       {needsPhotos && (
         <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-          <AlertTriangle size={10} />Back Charge requires at least 2 photos ({2 - totalPhotos} more needed)
+          <AlertTriangle size={10} />{t("activitySheet.bcRequireLabel")}
         </p>
       )}
     </div>
@@ -634,6 +616,7 @@ function ActivityCard({ activity, index, existingPhotoCount, onEdit, onRemove }:
 function PhotoSection({ photos, onAdd, onRemove }: {
   photos: File[]; onAdd: (files: File[]) => void; onRemove: (i: number) => void;
 }) {
+  const { t } = useI18n();
   const cameraRef  = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
@@ -654,10 +637,10 @@ function PhotoSection({ photos, onAdd, onRemove }: {
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <button type="button" onClick={() => cameraRef.current?.click()} className="border-2 border-dashed border-border rounded-xl py-5 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-          <Camera size={18} />Camera
+          <Camera size={18} />{t("common.camera")}
         </button>
         <button type="button" onClick={() => galleryRef.current?.click()} className="border-2 border-dashed border-border rounded-xl py-5 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-          <ImageIcon size={18} />Gallery
+          <ImageIcon size={18} />{t("common.gallery")}
         </button>
       </div>
       <input ref={cameraRef}  type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => processAndAdd(e.target.files, cameraRef.current)} />
@@ -711,6 +694,7 @@ function BottomSheet({ open, onClose, title, step, totalSteps, children, footer 
   step?: number; totalSteps?: number;
   children: React.ReactNode; footer: React.ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <>
       <div className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`} onClick={onClose} />
@@ -719,7 +703,7 @@ function BottomSheet({ open, onClose, title, step, totalSteps, children, footer 
         <div className="flex items-center justify-between px-5 py-3 shrink-0">
           <div>
             <p className="text-sm font-semibold text-foreground">{title}</p>
-            {step && totalSteps && <p className="text-[10px] text-muted-foreground">Step {step} of {totalSteps}</p>}
+            {step && totalSteps && <p className="text-[10px] text-muted-foreground">{t("common.step", { current: step, total: totalSteps })}</p>}
           </div>
           <div className="flex items-center gap-2">
             {step && totalSteps && (
@@ -743,15 +727,16 @@ function LocationSheet({ open, path, candidates, loading, onPick, onBack, onClos
   open: boolean; path: QBTJobcode[]; candidates: QBTJobcode[]; loading: boolean;
   onPick: (node: QBTJobcode) => void; onBack: (toIndex: number) => void; onClose: () => void;
 }) {
-  const title = path.length === 0 ? "Select Jobsite" : `Select under "${path[path.length - 1].name}"`;
+  const { t } = useI18n();
+  const title = path.length === 0 ? t("logForm.selectJobsiteLabel") : t("logForm.selectUnder", { name: path[path.length - 1].name });
   return (
     <BottomSheet open={open} onClose={onClose} title={title}
-      footer={<button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Cancel</button>}
+      footer={<button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">{t("common.cancel")}</button>}
     >
       <div className="space-y-3 py-2">
         {path.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap">
-            <button onClick={() => onBack(0)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Root</button>
+            <button onClick={() => onBack(0)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{t("logForm.root")}</button>
             {path.map((node, i) => (
               <span key={node.id} className="flex items-center gap-1">
                 <ChevronRight size={10} className="text-muted-foreground" />
@@ -766,7 +751,7 @@ function LocationSheet({ open, path, candidates, loading, onPick, onBack, onClos
           <div className="flex items-center justify-center py-8"><Loader2 size={20} className="animate-spin text-muted-foreground" /></div>
         ) : candidates.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground">No entries found in QuickBooks Time.</p>
+            <p className="text-sm text-muted-foreground">{t("logForm.noQBTEntries")}</p>
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -812,6 +797,7 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
   open: boolean; workers: Worker[]; draft: Activity; existingPhotoCount: number;
   onChange: (a: Activity) => void; onClose: () => void; onConfirm: () => void;
 }) {
+  const { t } = useI18n();
   const { displayed, goTo, cls } = useSheetStep(open);
   const [search, setSearch] = useState("");
   useEffect(() => { if (open) setSearch(""); }, [open]);
@@ -821,19 +807,19 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
   const canConfirm = !isBC || (existingPhotoCount + draft.photos.length) >= 2;
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={displayed === 1 ? "Activity — What" : "Activity — Who"} step={displayed} totalSteps={2}
+    <BottomSheet open={open} onClose={onClose} title={displayed === 1 ? t("activitySheet.whatTitle") : t("activitySheet.whoTitle")} step={displayed} totalSteps={2}
       footer={displayed === 1 ? (
         <>
-          <button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">{t("common.cancel")}</button>
           <button onClick={() => goTo(2)} disabled={!canNext} className="flex-1 bg-primary text-primary-foreground rounded-lg py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
-            Next <ChevronRight size={16} />
+            {t("common.next")} <ChevronRight size={16} />
           </button>
         </>
       ) : (
         <>
-          <button onClick={() => goTo(1)} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">Back</button>
+          <button onClick={() => goTo(1)} className="flex-1 border border-border rounded-lg py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors">{t("common.back")}</button>
           <button onClick={onConfirm} disabled={!canConfirm} className="flex-1 bg-primary text-primary-foreground rounded-lg py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
-            <Check size={16} />Confirm
+            <Check size={16} />{t("common.confirm")}
           </button>
         </>
       )}
@@ -842,29 +828,29 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
         {displayed === 1 ? (
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><AlignLeft size={12} />Description — Premium Framing Activity</label>
-              <textarea value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} rows={4} placeholder="Describe the work performed…" autoFocus
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><AlignLeft size={12} />{t("activitySheet.description")}</label>
+              <textarea value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} rows={4} placeholder={t("activitySheet.descPlaceholder")} autoFocus
                 className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Clock size={12} />Start</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Clock size={12} />{t("activitySheet.start")}</label>
                 <TimeInput value={draft.timeStart} onChange={(v) => onChange({ ...draft, timeStart: v })} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Clock size={12} />End</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Clock size={12} />{t("activitySheet.end")}</label>
                 <TimeInput value={draft.timeEnd} onChange={(v) => onChange({ ...draft, timeEnd: v })} />
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Tag size={12} />Work Type</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Tag size={12} />{t("activitySheet.workType")}</label>
               <div className="grid grid-cols-2 gap-2">
                 {(Object.entries(WORK_TYPE_CONFIG) as [WorkTypeKey, typeof WORK_TYPE_CONFIG[WorkTypeKey]][]).map(([key, cfg]) => {
                   const sel = draft.workType === key;
                   return (
                     <button key={key} onClick={() => onChange({ ...draft, workType: key })}
                       className={`py-2.5 px-3 rounded-lg border text-xs font-medium transition-colors flex items-center gap-2 ${sel ? `${cfg.bg} ${cfg.border} ${cfg.text}` : "bg-background border-border/40 text-muted-foreground hover:border-border"}`}>
-                      <cfg.Icon size={13} />{cfg.label}
+                      <cfg.Icon size={13} />{t(cfg.labelKey)}
                     </button>
                   );
                 })}
@@ -872,17 +858,17 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
             </div>
             {isBC && (
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Building2 size={12} />Subcontractor Responsible</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Building2 size={12} />{t("activitySheet.chargeableSub")}</label>
                 <input
                   value={draft.chargeableSub ?? ""}
                   onChange={(e) => onChange({ ...draft, chargeableSub: e.target.value })}
-                  placeholder="Which subcontractor caused this charge?"
+                  placeholder={t("activitySheet.chargeablePlaceholder")}
                   className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
                 />
               </div>
             )}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Camera size={12} />Add Photos</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Camera size={12} />{t("activitySheet.addPhotos")}</label>
               <PhotoSection
                 photos={draft.photos}
                 onAdd={(files) => onChange({ ...draft, photos: [...draft.photos, ...files] })}
@@ -894,7 +880,7 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
           <div className="space-y-3 py-2">
             {!canConfirm && (
               <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2">
-                <AlertTriangle size={12} />Back Charge requires at least 2 photos — go back and add them.
+                <AlertTriangle size={12} />{t("activitySheet.bcPhotosWarning")}
               </div>
             )}
             {draft.workerNames.length > 0 && (
@@ -909,7 +895,7 @@ function ActivitySheet({ open, workers, draft, existingPhotoCount, onChange, onC
             )}
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-              <input type="text" placeholder="Search crew…" value={search} onChange={(e) => setSearch(e.target.value)}
+              <input type="text" placeholder={t("activitySheet.searchCrew")} value={search} onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-card border border-foreground/25 rounded-lg pl-9 pr-8 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors" />
               {search && <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"><X size={14} /></button>}
             </div>
@@ -939,6 +925,7 @@ function SubcontractorSection({ subcontractors, onChange }: {
   subcontractors: SubEntry[];
   onChange: (subs: SubEntry[]) => void;
 }) {
+  const { t } = useI18n();
   const [adding, setAdding]             = useState(false);
   const [draftCompany, setDraftCompany] = useState("");
   const [draftWorkers, setDraftWorkers] = useState("");
@@ -978,37 +965,32 @@ function SubcontractorSection({ subcontractors, onChange }: {
       {adding ? (
         <div className="bg-background border border-primary/20 rounded-xl p-3 space-y-2">
           <input
-            autoFocus
-            value={draftCompany}
-            onChange={(e) => setDraftCompany(e.target.value)}
-            placeholder="Company / Team name…"
+            autoFocus value={draftCompany} onChange={(e) => setDraftCompany(e.target.value)}
+            placeholder={t("logForm.companyName")}
             className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
           />
           <input
-            value={draftWorkers}
-            onChange={(e) => setDraftWorkers(e.target.value)}
-            placeholder="People involved (comma-separated)…"
+            value={draftWorkers} onChange={(e) => setDraftWorkers(e.target.value)}
+            placeholder={t("logForm.workers")}
             className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors"
           />
           <textarea
-            value={draftDesc}
-            onChange={(e) => setDraftDesc(e.target.value)}
-            rows={2}
-            placeholder="What was done…"
+            value={draftDesc} onChange={(e) => setDraftDesc(e.target.value)} rows={2}
+            placeholder={t("logForm.whatDone")}
             className="w-full bg-card border border-foreground/25 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary transition-colors resize-none"
           />
           <div className="flex gap-2">
             <button onClick={() => { setAdding(false); setDraftCompany(""); setDraftWorkers(""); setDraftDesc(""); }} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:bg-accent transition-colors">
-              Cancel
+              {t("common.cancel")}
             </button>
             <button onClick={addSub} disabled={!draftCompany.trim()} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold disabled:opacity-40 transition-opacity">
-              Add
+              {t("common.add")}
             </button>
           </div>
         </div>
       ) : (
         <button onClick={() => setAdding(true)} className="w-full border-2 border-dashed border-border rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-          <Plus size={15} />Add Subcontractor
+          <Plus size={15} />{t("logForm.addSubcontractor")}
         </button>
       )}
     </div>
@@ -1018,11 +1000,9 @@ function SubcontractorSection({ subcontractors, onChange }: {
 // ─── Activity Confirm Modal ───────────────────────────────────────────────────
 
 function ActivityConfirmModal({ open, activityNumber, onAddAnother, onContinue }: {
-  open: boolean;
-  activityNumber: number;
-  onAddAnother: () => void;
-  onContinue: () => void;
+  open: boolean; activityNumber: number; onAddAnother: () => void; onContinue: () => void;
 }) {
+  const { t } = useI18n();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center px-6">
@@ -1032,21 +1012,15 @@ function ActivityConfirmModal({ open, activityNumber, onAddAnother, onContinue }
           <Check size={28} className="text-emerald-500" />
         </div>
         <div className="text-center">
-          <p className="text-base font-semibold text-foreground">Activity {activityNumber} added</p>
-          <p className="text-sm text-muted-foreground mt-1">What would you like to do next?</p>
+          <p className="text-base font-semibold text-foreground">{t("activityConfirm.title", { n: activityNumber })}</p>
+          <p className="text-sm text-muted-foreground mt-1">{t("activityConfirm.subtitle")}</p>
         </div>
         <div className="flex flex-col gap-2 w-full">
-          <button
-            onClick={onAddAnother}
-            className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-          >
-            <Plus size={16} />Add Another Activity
+          <button onClick={onAddAnother} className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+            <Plus size={16} />{t("activityConfirm.addAnother")}
           </button>
-          <button
-            onClick={onContinue}
-            className="w-full border border-border text-foreground font-medium py-3 rounded-lg text-sm hover:bg-accent transition-colors"
-          >
-            Continue to Next Fields
+          <button onClick={onContinue} className="w-full border border-border text-foreground font-medium py-3 rounded-lg text-sm hover:bg-accent transition-colors">
+            {t("activityConfirm.continue")}
           </button>
         </div>
       </div>
@@ -1057,11 +1031,9 @@ function ActivityConfirmModal({ open, activityNumber, onAddAnother, onContinue }
 // ─── Save Success Modal ───────────────────────────────────────────────────────
 
 function SaveModal({ open, logId, closeEnabled, onClose }: {
-  open: boolean;
-  logId: string;
-  closeEnabled: boolean;
-  onClose: () => void;
+  open: boolean; logId: string; closeEnabled: boolean; onClose: () => void;
 }) {
+  const { t } = useI18n();
   if (!open) return null;
 
   function downloadPdf() {
@@ -1085,21 +1057,21 @@ function SaveModal({ open, logId, closeEnabled, onClose }: {
           </button>
         </div>
         <div>
-          <p className="text-base font-semibold text-foreground">Daily log updated!</p>
-          <p className="text-sm text-muted-foreground mt-1">Download the PDF and send it in <span className="font-semibold text-foreground">Buildertrend</span> before closing.</p>
+          <p className="text-base font-semibold text-foreground">{t("submitModal.updated")}</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {t("submitModal.subtitleBefore")}<span className="font-semibold text-foreground">Buildertrend</span>{t("submitModal.subtitleAfter")}
+          </p>
         </div>
         <div className="flex flex-col gap-2">
           <button
             onClick={downloadPdf}
             className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
-            <Download size={16} />Download PDF
+            <Download size={16} />{t("submitModal.download")}
           </button>
         </div>
         {!closeEnabled && (
-          <p className="text-xs text-muted-foreground text-center">
-            You can close this window in a moment…
-          </p>
+          <p className="text-xs text-muted-foreground text-center">{t("submitModal.closing")}</p>
         )}
       </div>
     </div>
