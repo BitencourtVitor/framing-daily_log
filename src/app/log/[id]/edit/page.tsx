@@ -214,6 +214,10 @@ export default function EditLogPage() {
         await uploadFile(photo);
       }
 
+      if (isAdmin) {
+        window.location.href = `/log/${id}`;
+        return;
+      }
       setSaveModalCloseEnabled(false);
       setSaveModal(true);
       setTimeout(() => setSaveModalCloseEnabled(true), 20000);
