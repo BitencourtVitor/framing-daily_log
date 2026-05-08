@@ -116,7 +116,7 @@ export async function POST(
   if (config.bcRecipients.length) {
     log.activities.forEach((activity, idx) => {
       if (activity.workType !== "back-charge") return;
-      const bcPhotos = [...generalPhotos, ...(activityPhotoMap.get(idx) ?? [])];
+      const bcPhotos = activityPhotoMap.get(idx) ?? [];
       sends.push(
         sendBackChargeEmail({
           to:            config.bcRecipients,

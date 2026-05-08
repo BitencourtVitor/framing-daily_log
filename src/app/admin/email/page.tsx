@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, ShieldCheck, Mail, Plus, X, Loader2, Check } from "lucide-react";
 
@@ -17,12 +17,14 @@ function RecipientList({
   title,
   subtitle,
   emails,
+  saving,
   onAdd,
   onRemove,
 }: {
   title: string;
   subtitle: string;
   emails: string[];
+  saving: boolean;
   onAdd: (email: string) => void;
   onRemove: (email: string) => void;
 }) {
@@ -40,9 +42,12 @@ function RecipientList({
 
   return (
     <div className="bg-card border border-border/40 rounded-xl p-4 space-y-3">
-      <div>
-        <p className="text-sm font-semibold text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+        </div>
+        {saving && <Loader2 size={14} className="animate-spin text-muted-foreground shrink-0" />}
       </div>
 
       <div className="space-y-1.5">
@@ -87,8 +92,8 @@ export default function AdminEmailPage() {
   const router = useRouter();
   const [config, setConfig] = useState<Config>({ dlRecipients: [], bcRecipients: [] });
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savingDL, setSavingDL] = useState(false);
+  const [savingBC, setSavingBC] = useState(false);
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.ok ? r.json() : {}).then((d: { role?: string }) => {
@@ -100,22 +105,37 @@ export default function AdminEmailPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  async function save() {
-    setSaving(true); setSaved(false);
+  const persist = useCallback(async (next: Config, list: "dl" | "bc") => {
+    const setSaving = list === "dl" ? setSavingDL : setSavingBC;
+    setSaving(true);
     await fetch("/api/admin/email-config", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
-    });
+      body: JSON.stringify(next),
+    }).catch(() => {});
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  }
+  }, []);
 
-  function addDL(email: string) { setConfig((c) => ({ ...c, dlRecipients: [...c.dlRecipients, email] })); }
-  function removeDL(email: string) { setConfig((c) => ({ ...c, dlRecipients: c.dlRecipients.filter((e) => e !== email) })); }
-  function addBC(email: string) { setConfig((c) => ({ ...c, bcRecipients: [...c.bcRecipients, email] })); }
-  function removeBC(email: string) { setConfig((c) => ({ ...c, bcRecipients: c.bcRecipients.filter((e) => e !== email) })); }
+  function addDL(email: string) {
+    const next: Config = { ...config, dlRecipients: [...config.dlRecipients, email] };
+    setConfig(next);
+    persist(next, "dl");
+  }
+  function removeDL(email: string) {
+    const next: Config = { ...config, dlRecipients: config.dlRecipients.filter((e) => e !== email) };
+    setConfig(next);
+    persist(next, "dl");
+  }
+  function addBC(email: string) {
+    const next: Config = { ...config, bcRecipients: [...config.bcRecipients, email] };
+    setConfig(next);
+    persist(next, "bc");
+  }
+  function removeBC(email: string) {
+    const next: Config = { ...config, bcRecipients: config.bcRecipients.filter((e) => e !== email) };
+    setConfig(next);
+    persist(next, "bc");
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -127,14 +147,8 @@ export default function AdminEmailPage() {
           <ShieldCheck size={16} className="text-primary" />
           <p className="text-sm font-semibold text-foreground">Email Recipients</p>
         </div>
-        <button
-          onClick={save}
-          disabled={saving}
-          className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-90 disabled:opacity-60"
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null}
-          {saved ? "Saved" : "Save"}
-        </button>
+        {(savingDL || savingBC) && <Loader2 size={16} className="animate-spin text-muted-foreground" />}
+        {(!savingDL && !savingBC && !loading) && <Check size={16} className="text-emerald-500" />}
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-8 space-y-4">
@@ -148,6 +162,7 @@ export default function AdminEmailPage() {
               title="Daily Log Recipients"
               subtitle="Receive an email for every submitted Daily Log"
               emails={config.dlRecipients}
+              saving={savingDL}
               onAdd={addDL}
               onRemove={removeDL}
             />
@@ -155,6 +170,7 @@ export default function AdminEmailPage() {
               title="Back Charge Recipients"
               subtitle="Receive a separate alert for each Back Charge activity"
               emails={config.bcRecipients}
+              saving={savingBC}
               onAdd={addBC}
               onRemove={removeBC}
             />
