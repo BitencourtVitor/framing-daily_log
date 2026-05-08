@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import {
   ChevronLeft, MapPin, CalendarDays, User, Loader2,
   Download, Layers, Camera, Wrench, Package, AlertTriangle,
-  CalendarClock, MessageSquare, HardHat, Users, X, Pencil,
+  CalendarClock, MessageSquare, HardHat, Users, X, Pencil, Building2,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ interface Activity {
   timeEnd: string;
   workType: "normal" | "back-charge" | "extra" | "warranty";
   workerNames: string[];
+  chargeableSub?: string;
 }
 
 interface Notes {
@@ -254,6 +255,12 @@ export default function LogDetailPage() {
                     <div className="px-4 py-3 space-y-2">
                       <p className="text-sm text-foreground leading-relaxed">{act.description}</p>
                       <p className="text-xs text-muted-foreground">{fmtTime(act.timeStart)} → {fmtTime(act.timeEnd)}</p>
+                      {act.workType === "back-charge" && act.chargeableSub && (
+                        <div className="flex items-center gap-1.5">
+                          <Building2 size={11} className="text-amber-500 shrink-0" />
+                          <p className="text-xs text-amber-600 dark:text-amber-400"><span className="font-semibold">Chargeable to:</span> {act.chargeableSub}</p>
+                        </div>
+                      )}
                       {act.workerNames.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 pt-1">
                           {act.workerNames.map((w, wi) => (

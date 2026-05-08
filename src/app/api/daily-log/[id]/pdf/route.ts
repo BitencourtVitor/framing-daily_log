@@ -68,6 +68,7 @@ export async function GET(
       timeEnd: a.timeEnd,
       workType: a.workType,
       workerNames: a.workerNames,
+      chargeableSub: a.chargeableSub ?? "",
     })),
     subcontractors: (log.subcontractors ?? []).map((s) => ({
       company: s.company,

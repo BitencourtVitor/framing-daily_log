@@ -242,6 +242,7 @@ export interface PDFActivity {
   timeEnd: string;
   workType: string;
   workerNames: string[];
+  chargeableSub?: string;
 }
 
 export interface PDFSub {
@@ -406,6 +407,13 @@ export function DailyLogPDF({ log, photos }: { log: PDFLogData; photos: PDFPhoto
                           </View>
                         )}
                       </View>
+
+                      {act.workType === "back-charge" && act.chargeableSub ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 }}>
+                          <Text style={{ fontSize: 7.5, fontFamily: "Helvetica-Bold", color: C.amber }}>Chargeable to:</Text>
+                          <Text style={{ fontSize: 8, color: C.amber }}>{act.chargeableSub}</Text>
+                        </View>
+                      ) : null}
 
                       {act.workerNames.length > 0 && (
                         <View style={s.chipsRow}>

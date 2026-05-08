@@ -266,7 +266,7 @@ export default function EditLogPage() {
 
       setSaveModalCloseEnabled(false);
       setSaveModal(true);
-      setTimeout(() => setSaveModalCloseEnabled(true), 3000);
+      setTimeout(() => setSaveModalCloseEnabled(true), 20000);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Network error. Please try again.");
     } finally {

@@ -315,7 +315,7 @@ export default function NewLogPage() {
       setSubmittedLogId(id);
       setSubmitModalCloseEnabled(false);
       setSubmitModal(true);
-      setTimeout(() => setSubmitModalCloseEnabled(true), 3000);
+      setTimeout(() => setSubmitModalCloseEnabled(true), 20000);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Network error. Please try again.");
     } finally {
