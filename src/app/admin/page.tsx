@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Users, ClipboardList, ChevronRight, ShieldCheck, Car } from "lucide-react";
+import { Users, ClipboardList, ChevronRight, ShieldCheck, Car, Mail } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
@@ -10,6 +10,7 @@ const MENU = [
   { href: "/admin/users",    Icon: Users,         titleKey: "admin.manageUsers",    subKey: "admin.manageUsersSub" },
   { href: "/admin/logs",     Icon: ClipboardList, titleKey: "admin.dailyLogList",   subKey: "admin.dailyLogListSub" },
   { href: "/admin/vehicles", Icon: Car,           titleKey: "admin.vehicles",        subKey: "admin.vehiclesSub" },
+  { href: "/admin/email",    Icon: Mail,          titleKey: "admin.emailRecipients", subKey: "admin.emailRecipientsSub" },
 ];
 
 export default function AdminPage() {

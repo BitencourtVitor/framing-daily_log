@@ -145,6 +145,8 @@
     "dailyLogList": "Daily Log List",
     "dailyLogListSub": "Review logs, view details and export PDF",
     "vehicles": "Vehicles",
-    "vehiclesSub": "Fleet — license plates & descriptions"
+    "vehiclesSub": "Fleet — license plates & descriptions",
+    "emailRecipients": "Email Recipients",
+    "emailRecipientsSub": "Manage DL and Back Charge notification lists"
   }
 }

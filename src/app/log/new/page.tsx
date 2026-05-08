@@ -253,6 +253,9 @@ export default function NewLogPage() {
         await uploadFile(photo);
       }
 
+      // Trigger emails after all photos are uploaded
+      fetch(`/api/daily-log/${id}/notify`, { method: "POST" }).catch(() => {});
+
       setSubmittedLogId(id);
       setSubmitModalCloseEnabled(false);
       setSubmitModal(true);

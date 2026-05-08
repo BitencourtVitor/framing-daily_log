@@ -145,6 +145,8 @@
     "dailyLogList": "Lista de Diários",
     "dailyLogListSub": "Revisar diários, ver detalhes e exportar PDF",
     "vehicles": "Veículos",
-    "vehiclesSub": "Frota — placas e descrições"
+    "vehiclesSub": "Frota — placas e descrições",
+    "emailRecipients": "Destinatários de Email",
+    "emailRecipientsSub": "Gerenciar listas de notificação DL e Back Charge"
   }
 }
